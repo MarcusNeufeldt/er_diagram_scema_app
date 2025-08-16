@@ -14,10 +14,14 @@ import 'reactflow/dist/style.css';
 
 import { useDiagramStore } from '../stores/diagramStore';
 import { TableNode } from './TableNode';
+import { StickyNote } from './StickyNote';
+import { Shape } from './Shape';
 import { ForeignKeyEdge } from './ForeignKeyEdge';
 
 const nodeTypes: NodeTypes = {
   table: TableNode,
+  'sticky-note': StickyNote,
+  shape: Shape,
 };
 
 const edgeTypes: EdgeTypes = {
@@ -40,6 +44,15 @@ export const Canvas: React.FC = () => {
   } = useDiagramStore();
 
   const { project } = useReactFlow();
+  
+  // Sort nodes by z-index to ensure proper layering
+  const sortedNodes = React.useMemo(() => {
+    return [...nodes].sort((a, b) => {
+      const aZ = a.zIndex || 0;
+      const bZ = b.zIndex || 0;
+      return aZ - bZ;
+    });
+  }, [nodes]);
   
   // Validate connections - allow all for now
   const isValidConnection = useCallback((connection: any) => {
@@ -85,7 +98,7 @@ export const Canvas: React.FC = () => {
   return (
     <div className="flex-1 h-full">
       <ReactFlow
-        nodes={nodes}
+        nodes={sortedNodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}

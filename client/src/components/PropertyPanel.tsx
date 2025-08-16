@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { useDiagramStore } from '../stores/diagramStore';
-import { Column } from '../types';
+import { Column, TableData } from '../types';
 
 export const PropertyPanel: React.FC = () => {
   const { nodes, selectedNodeId, updateTable, selectNode, addColumn, updateColumn, removeColumn } = useDiagramStore();
@@ -13,12 +13,37 @@ export const PropertyPanel: React.FC = () => {
   if (!selectedNode || !selectedNodeId) {
     return (
       <div className="w-80 bg-white border-l border-gray-200 p-4">
-        <p className="text-gray-500 text-center">Select a table to edit properties</p>
+        <p className="text-gray-500 text-center">Select an element to edit properties</p>
       </div>
     );
   }
 
-  const tableData = selectedNode.data;
+  // Only show property panel for tables
+  if (selectedNode.type !== 'table') {
+    return (
+      <div className="w-80 bg-white border-l border-gray-200 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-800">
+            {selectedNode.type === 'sticky-note' ? 'Sticky Note' :
+             selectedNode.type === 'shape' ? 'Shape' : 'Element'} Selected
+          </h3>
+          <button
+            onClick={() => selectNode(null)}
+            className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <p className="text-gray-500 text-sm">
+          {selectedNode.type === 'sticky-note' ? 'Double-click the note to edit its content.' :
+           selectedNode.type === 'shape' ? 'Double-click the shape to edit its label.' :
+           'Use the controls on the element to edit its properties.'}
+        </p>
+      </div>
+    );
+  }
+
+  const tableData = selectedNode.data as TableData;
 
   const handleTableNameChange = (name: string) => {
     updateTable(selectedNodeId, { name });

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Node, Edge, addEdge, applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange, Connection } from 'reactflow';
-import { TableData, Column } from '../types';
+import { TableData, Column, StickyNoteData, ShapeData } from '../types';
 import * as Y from 'yjs';
 
 interface PendingConnection {
@@ -67,6 +67,10 @@ interface DiagramState extends UIState {
   addTable: (position: { x: number; y: number }) => void;
   updateTable: (nodeId: string, data: Partial<TableData>) => void;
   deleteTable: (nodeId: string) => void;
+  addStickyNote: (position: { x: number; y: number }) => void;
+  addShape: (position: { x: number; y: number }, shapeType: 'rectangle' | 'circle' | 'diamond') => void;
+  updateNode: (nodeId: string, data: Partial<StickyNoteData | ShapeData | TableData>) => void;
+  deleteNode: (nodeId: string) => void;
   selectNode: (nodeId: string | null) => void;
   setContextMenuNode: (nodeId: string | null) => void;
   addColumn: (nodeId: string, column: Column) => void;
@@ -432,6 +436,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
       type: 'table',
       position: snappedPosition,
       data: newTable,
+      zIndex: 100, // Tables should be on top
     };
 
     const { yNodes } = get();
@@ -1000,6 +1005,111 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
   
   setGridSize: (size: number) => {
     set({ gridSize: size });
+  },
+  
+  addStickyNote: (position) => {
+    const { snapToGrid, gridSize } = get();
+    const snappedPosition = snapToGridPosition(position, gridSize, snapToGrid);
+    
+    const stickyNoteData: StickyNoteData = {
+      id: `sticky-${Date.now()}`,
+      content: '',
+      color: '#fef3c7', // Default yellow
+      author: 'User', // TODO: Get from user context
+      timestamp: new Date(),
+      width: 200,
+      height: 150,
+    };
+
+    const newNode: Node = {
+      id: stickyNoteData.id,
+      type: 'sticky-note',
+      position: snappedPosition,
+      data: stickyNoteData,
+      style: {
+        width: 200,
+        height: 150,
+      },
+      zIndex: 50, // Sticky notes in middle layer
+    };
+
+    setStateWithHistory({
+      nodes: [...get().nodes, newNode],
+      selectedNodeId: stickyNoteData.id
+    }, 'Add Sticky Note');
+  },
+  
+  addShape: (position, shapeType) => {
+    const { snapToGrid, gridSize } = get();
+    const snappedPosition = snapToGridPosition(position, gridSize, snapToGrid);
+    
+    const shapeData: ShapeData = {
+      id: `shape-${Date.now()}`,
+      type: shapeType,
+      title: '',
+      color: '#f3f4f6',
+      borderColor: '#6b7280',
+      width: shapeType === 'circle' ? 200 : 250,
+      height: shapeType === 'circle' ? 200 : 180,
+    };
+
+    const newNode: Node = {
+      id: shapeData.id,
+      type: 'shape',
+      position: snappedPosition,
+      data: shapeData,
+      style: {
+        width: shapeData.width,
+        height: shapeData.height,
+      },
+      zIndex: 1, // Shapes should be in background
+    };
+
+    setStateWithHistory({
+      nodes: [...get().nodes, newNode],
+      selectedNodeId: shapeData.id
+    }, `Add ${shapeType.charAt(0).toUpperCase() + shapeType.slice(1)}`);
+  },
+  
+  updateNode: (nodeId, updates) => {
+    const newNodes = get().nodes.map((node) =>
+      node.id === nodeId
+        ? { ...node, data: { ...node.data, ...updates } }
+        : node
+    );
+    
+    setStateWithHistory({ nodes: newNodes }, 'Update Node');
+    
+    // Sync to Yjs if available
+    const { yNodes } = get();
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+    }
+  },
+  
+  deleteNode: (nodeId) => {
+    const newNodes = get().nodes.filter((node) => node.id !== nodeId);
+    const newEdges = get().edges.filter((edge) => 
+      edge.source !== nodeId && edge.target !== nodeId
+    );
+    
+    const selectedNodeId = get().selectedNodeId === nodeId ? null : get().selectedNodeId;
+    
+    setStateWithHistory({
+      nodes: newNodes,
+      edges: newEdges,
+      selectedNodeId
+    }, 'Delete Node');
+    
+    // Sync to Yjs if available
+    const { yNodes, yEdges } = get();
+    if (yNodes && yEdges) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+      yEdges.delete(0, yEdges.length);
+      yEdges.push(newEdges);
+    }
   }
   };
 });

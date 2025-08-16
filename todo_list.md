@@ -8,10 +8,13 @@
 - [ ] **Properties Panel** - A sidebar to edit selected table/field properties in detail
 - [ ] **Field Type Dropdown** - Better UI for selecting SQL data types with autocomplete
 - [ ] **Duplicate Table** - Implement the duplicate functionality from context menu
+- [x] **Magnetic Grid** - Snap-to-grid functionality for precise diagram alignment ✅
+- [x] **Sticky Notes** - Add collaborative notes with 8 colors and author attribution ✅
+- [x] **Shapes** - Background shapes (rectangle, circle, diamond) for visual grouping ✅
 
 ## Phase 3: Productivity Features
 - [ ] **Keyboard Shortcuts** - Delete key, F2 for rename, Ctrl+Z/Y for undo/redo, etc.
-- [ ] **Undo/Redo** - Implement the undo/redo buttons in toolbar with history stack
+- [x] **Undo/Redo** - Comprehensive automatic history tracking with setStateWithHistory ✅
 - [x] **Auto-layout** - Automatically arrange tables in a clean layout ✅
 
 ## Phase 4: Visual & Export Improvements
@@ -84,7 +87,50 @@
   - Configurable spacing (350px columns, 180px rows)
   - Responsive column wrapping for large schemas
 
-## Phase 6: Advanced Features
+## Phase 6: ReactFlow Native Features Enhancement 🚀
+*Leveraging built-in ReactFlow capabilities discovered in documentation*
+
+### UI Components
+- [ ] **NodeToolbar** - Replace context menu with persistent node toolbar
+  - Always visible when node selected
+  - Doesn't scale with zoom (always readable)
+  - Quick actions: delete, duplicate, add column
+  - Better UX than right-click menus
+- [ ] **Panel Component** - Use for floating UI elements
+  - AI chat as bottom-right panel
+  - Toolbar actions as top-center panel
+  - Status indicators as top-left panel
+  - Supports 6 positions: top/bottom + left/center/right
+- [ ] **Enhanced Controls** - Customize zoom controls
+  - Add custom buttons to Controls component
+  - Horizontal/vertical orientation options
+  - Event handlers for zoom state changes
+
+### Visual Enhancements
+- [ ] **Native Dark Mode** - Use ReactFlow's built-in theming
+  - `colorMode` prop: 'dark', 'light', or 'system'
+  - No custom CSS needed for basic dark mode
+- [ ] **CSS Variables Theming** - Complete theme customization
+  - `--xy-node-background-color-default`
+  - `--xy-edge-stroke-default`
+  - `--xy-minimap-background-color`
+  - Create custom brand themes
+- [ ] **Edge Enhancements**
+  - `EdgeLabelRenderer` for better relationship labels
+  - Custom SVG markers for cardinality (1:1, 1:many, many:many)
+  - Increase `interactionWidth` for easier edge clicking
+  - Use `BaseEdge` component with custom paths
+
+### Interaction Improvements
+- [ ] **nodrag Class** - Prevent dragging on specific elements
+  - Apply to input fields and buttons within nodes
+  - Better interaction with form elements
+- [ ] **Multiple Handles** - Add more connection points
+  - Multiple source/target handles per table
+  - Connect from specific columns
+  - Better visual representation of relationships
+
+## Phase 7: Advanced Features
 - [ ] **Import from Database** - Connect to existing database and import schema
 - [ ] **Collaboration Features** - Real-time multi-user editing enhancements
 - [ ] **Version History** - Track and revert changes
@@ -111,3 +157,11 @@
 - **Visual Indicators** - Primary keys (🔑), Foreign keys (#), Not null (*)
 - **Error Suppression** - Clean console without ResizeObserver spam
 - **Auto-Layout** - Left-to-right hierarchical layout following dependency chains ✨
+- **Undo/Redo System** - Comprehensive automatic history tracking for all operations ✨
+- **Magnetic Grid** - Professional snap-to-grid with configurable size (20px default) ✨
+- **Collaboration Features** - Sticky notes and shapes for team communication ✨
+  - Sticky Notes: 8 colors, author attribution, timestamps, resizable
+  - Shapes: Rectangle/circle/diamond, background layering, color customization
+  - Proper z-index: Shapes (background) → Sticky Notes (middle) → Tables (foreground)
+- **AI Persona Fix** - Resolved AI misinterpreting "connections" as network instead of visual edges ✨
+- **ReactFlow NodeResizer** - Proper resizing for all node types with visual handles ✨

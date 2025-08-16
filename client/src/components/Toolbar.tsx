@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Plus, Download, Upload, Save, Undo, Redo, Bot, Layout, Grid3x3 } from 'lucide-react';
+import { Plus, Download, Upload, Save, Undo, Redo, Bot, Layout, Grid3x3, StickyNote, Square, Circle, Diamond } from 'lucide-react';
 import { useDiagramStore } from '../stores/diagramStore';
 import { SQLParser, SQLGenerator } from '../lib/sqlParser';
 
@@ -19,7 +19,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
     canUndo, 
     canRedo,
     snapToGrid,
-    toggleGrid
+    toggleGrid,
+    addStickyNote,
+    addShape
   } = useDiagramStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -30,6 +32,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
 
   const handleAutoLayout = () => {
     autoLayout();
+  };
+
+  const handleAddStickyNote = () => {
+    // Add sticky note at center of viewport
+    addStickyNote({ x: 500, y: 300 });
+  };
+
+  const handleAddShape = (shapeType: 'rectangle' | 'circle' | 'diamond') => {
+    // Add shape at center of viewport
+    addShape({ x: 500, y: 300 }, shapeType);
   };
 
   const handleUndo = () => {
@@ -188,6 +200,45 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         >
           <Plus size={16} />
           <span>Add Table</span>
+        </button>
+      </div>
+
+      {/* Divider */}
+      <div className="w-px h-6 bg-gray-300"></div>
+
+      {/* Annotation Tools */}
+      <div className="flex items-center space-x-2">
+        <button
+          onClick={handleAddStickyNote}
+          className="flex items-center space-x-2 px-3 py-2 bg-yellow-100 text-yellow-700 rounded-md hover:bg-yellow-200 transition-colors"
+          title="Add sticky note for comments and documentation"
+        >
+          <StickyNote size={16} />
+          <span>Note</span>
+        </button>
+        
+        <button
+          onClick={() => handleAddShape('rectangle')}
+          className="flex items-center space-x-2 px-2 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+          title="Add rectangle shape"
+        >
+          <Square size={16} />
+        </button>
+        
+        <button
+          onClick={() => handleAddShape('circle')}
+          className="flex items-center space-x-2 px-2 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+          title="Add circle shape"
+        >
+          <Circle size={16} />
+        </button>
+        
+        <button
+          onClick={() => handleAddShape('diamond')}
+          className="flex items-center space-x-2 px-2 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+          title="Add diamond shape"
+        >
+          <Diamond size={16} />
         </button>
       </div>
 

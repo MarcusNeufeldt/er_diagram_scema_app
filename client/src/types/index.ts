@@ -28,11 +28,31 @@ export interface ForeignKey {
   referencedColumn: string;
 }
 
+export interface StickyNoteData {
+  id: string;
+  content: string;
+  color: string;
+  author?: string;
+  timestamp?: Date;
+  width?: number;
+  height?: number;
+}
+
+export interface ShapeData {
+  id: string;
+  type: 'rectangle' | 'circle' | 'diamond';
+  title?: string;
+  color: string;
+  borderColor: string;
+  width: number;
+  height: number;
+}
+
 export interface DiagramNode {
   id: string;
-  type: 'table' | 'view' | 'schema';
+  type: 'table' | 'view' | 'schema' | 'sticky-note' | 'shape';
   position: { x: number; y: number };
-  data: TableData;
+  data: TableData | StickyNoteData | ShapeData;
 }
 
 export interface DiagramEdge {
