@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm start)",
+      "Bash(set PORT=3001)",
+      "Bash(taskkill:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(node:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run:*)",
+      "Bash(dir:*)",
+      "WebFetch(domain:openrouter.ai)",
+      "Bash(timeout:*)",
+      "Bash(git init:*)",
+      "Bash(rm:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git reset:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "acceptEdits"
+  }
+}

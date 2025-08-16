@@ -1,0 +1,835 @@
+import { create } from 'zustand';
+import { Node, Edge, addEdge, applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange, Connection } from 'reactflow';
+import { TableData, Column } from '../types';
+import * as Y from 'yjs';
+
+interface PendingConnection {
+  connection: Connection;
+  sourceTableName: string;
+  sourceColumnName: string;
+  targetTableName: string;
+  targetColumnName: string;
+}
+
+interface DiagramState {
+  nodes: Node[];
+  edges: Edge[];
+  selectedNodeId: string | null;
+  contextMenuNodeId: string | null;
+  pendingConnection: PendingConnection | null;
+  editingEdgeId: string | null;
+  animatingNodeIds: Set<string>;
+  yNodes: Y.Array<any> | null;
+  yEdges: Y.Array<any> | null;
+  
+  // Actions
+  onNodesChange: (changes: NodeChange[]) => void;
+  onEdgesChange: (changes: EdgeChange[]) => void;
+  onConnect: (connection: Connection) => void;
+  confirmConnection: (config: any) => void;
+  cancelConnection: () => void;
+  editConnection: (edgeId: string) => void;
+  
+  // Incremental AI updates
+  addFieldsToTable: (tableId: string, fields: Column[]) => void;
+  removeFieldsFromTable: (tableId: string, fieldIds: string[]) => void;
+  modifyFieldsInTable: (tableId: string, fieldUpdates: { id: string; updates: Partial<Column> }[]) => void;
+  addRelationships: (relationships: any[]) => void;
+  removeRelationships: (relationshipIds: string[]) => void;
+  flashTable: (tableId: string) => void;
+  addTable: (position: { x: number; y: number }) => void;
+  updateTable: (nodeId: string, data: Partial<TableData>) => void;
+  deleteTable: (nodeId: string) => void;
+  selectNode: (nodeId: string | null) => void;
+  setContextMenuNode: (nodeId: string | null) => void;
+  addColumn: (nodeId: string, column: Column) => void;
+  updateColumn: (nodeId: string, columnId: string, updates: Partial<Column>) => void;
+  removeColumn: (nodeId: string, columnId: string) => void;
+  importDiagram: (diagramData: { nodes: Node[]; edges?: Edge[] }) => void;
+  initializeYjs: (doc: Y.Doc) => void;
+  syncFromYjs: () => void;
+  autoLayout: () => void;
+}
+
+export const useDiagramStore = create<DiagramState>((set, get) => ({
+  nodes: [],
+  edges: [],
+  selectedNodeId: null,
+  contextMenuNodeId: null,
+  pendingConnection: null,
+  editingEdgeId: null,
+  animatingNodeIds: new Set(),
+  yNodes: null,
+  yEdges: null,
+
+  onNodesChange: (changes) => {
+    const newNodes = applyNodeChanges(changes, get().nodes);
+    set({ nodes: newNodes });
+    
+    // Sync position changes to Yjs
+    const { yNodes } = get();
+    if (yNodes && changes.some(c => c.type === 'position' && !c.dragging)) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+    }
+  },
+
+  onEdgesChange: (changes) => {
+    set({
+      edges: applyEdgeChanges(changes, get().edges),
+    });
+  },
+
+  onConnect: (connection) => {
+    if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) {
+      return;
+    }
+
+    // Parse the handle IDs to get table and column information
+    // Handle format: "table-1755327095951-col-1755327095951-source"
+    const sourceInfo = connection.sourceHandle.split('-');
+    const targetInfo = connection.targetHandle.split('-');
+    
+    // Handle format: table-{timestamp}-col-{timestamp}-source/target
+    // So we need: table-{timestamp} for tableId and col-{timestamp} for columnId
+    const sourceTableId = `${sourceInfo[0]}-${sourceInfo[1]}`;  // "table-1755327095951"
+    const sourceColumnId = `${sourceInfo[2]}-${sourceInfo[3]}`;  // "col-1755327095951"
+    const targetTableId = `${targetInfo[0]}-${targetInfo[1]}`;   // "table-1755327095322"
+    const targetColumnId = `${targetInfo[2]}-${targetInfo[3]}`;  // "col-1755327095322"
+
+    // Find table and column names
+    const nodes = get().nodes;
+    const sourceNode = nodes.find(n => n.id === sourceTableId);
+    const targetNode = nodes.find(n => n.id === targetTableId);
+    
+    if (!sourceNode || !targetNode) return;
+    
+    const sourceColumn = sourceNode.data.columns.find((col: Column) => col.id === sourceColumnId);
+    const targetColumn = targetNode.data.columns.find((col: Column) => col.id === targetColumnId);
+    
+    if (!sourceColumn || !targetColumn) return;
+
+    // Set pending connection to show modal
+    set({
+      pendingConnection: {
+        connection,
+        sourceTableName: sourceNode.data.name,
+        sourceColumnName: sourceColumn.name,
+        targetTableName: targetNode.data.name,
+        targetColumnName: targetColumn.name,
+      }
+    });
+  },
+
+  confirmConnection: (config) => {
+    const { pendingConnection, editingEdgeId } = get();
+    if (!pendingConnection) return;
+
+    const { connection } = pendingConnection;
+    const sourceInfo = connection.sourceHandle!.split('-');
+    const targetInfo = connection.targetHandle!.split('-');
+    
+    // Handle format: "table-1755327095951-col-1755327095951-source"
+    const sourceTableId = `${sourceInfo[0]}-${sourceInfo[1]}`;  // "table-1755327095951"
+    const sourceColumnId = `${sourceInfo[2]}-${sourceInfo[3]}`;  // "col-1755327095951"
+    const targetTableId = `${targetInfo[0]}-${targetInfo[1]}`;   // "table-1755327095322"
+    const targetColumnId = `${targetInfo[2]}-${targetInfo[3]}`;  // "col-1755327095322"
+
+    let newEdges;
+    
+    if (editingEdgeId) {
+      // Editing existing edge
+      newEdges = get().edges.map(edge => 
+        edge.id === editingEdgeId
+          ? {
+              ...edge,
+              data: {
+                ...edge.data,
+                cardinality: config.type,
+                label: config.name || 'references',
+                onDelete: config.onDeleteAction,
+                onUpdate: config.onUpdateAction,
+              },
+            }
+          : edge
+      );
+    } else {
+      // Creating new edge
+      const newEdge = {
+        id: `edge-${Date.now()}`,
+        type: 'foreign-key',
+        data: { 
+          cardinality: config.type,
+          label: config.name || 'references',
+          onDelete: config.onDeleteAction,
+          onUpdate: config.onUpdateAction,
+        },
+      };
+      
+      // Update edges
+      newEdges = addEdge({ ...connection, ...newEdge }, get().edges);
+      console.log('Manual edge created:', newEdges[newEdges.length - 1]);
+    }
+    
+    // Mark the target column as a foreign key
+    const nodes = get().nodes.map((node) => {
+      if (node.id === targetTableId) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            columns: node.data.columns.map((col: Column) =>
+              col.id === targetColumnId
+                ? {
+                    ...col,
+                    isForeignKey: true,
+                    references: {
+                      table: sourceTableId,
+                      column: sourceColumnId,
+                    },
+                  }
+                : col
+            ),
+          },
+        };
+      }
+      return node;
+    });
+
+    set({ edges: newEdges, nodes, pendingConnection: null, editingEdgeId: null });
+    
+    // Sync to Yjs if available
+    const { yNodes, yEdges } = get();
+    if (yNodes && yEdges) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(nodes);
+      yEdges.delete(0, yEdges.length);
+      yEdges.push(newEdges);
+    }
+  },
+
+  cancelConnection: () => {
+    set({ pendingConnection: null, editingEdgeId: null });
+  },
+
+  editConnection: (edgeId: string) => {
+    const { edges, nodes } = get();
+    const edge = edges.find(e => e.id === edgeId);
+    if (!edge || !edge.source || !edge.target || !edge.sourceHandle || !edge.targetHandle) return;
+
+    // Parse handles to get table and column info
+    const sourceInfo = edge.sourceHandle.split('-');
+    const targetInfo = edge.targetHandle.split('-');
+    
+    const sourceTableId = `${sourceInfo[0]}-${sourceInfo[1]}`;
+    const sourceColumnId = `${sourceInfo[2]}-${sourceInfo[3]}`;
+    const targetTableId = `${targetInfo[0]}-${targetInfo[1]}`;
+    const targetColumnId = `${targetInfo[2]}-${targetInfo[3]}`;
+
+    // Find table and column names
+    const sourceNode = nodes.find(n => n.id === sourceTableId);
+    const targetNode = nodes.find(n => n.id === targetTableId);
+    
+    if (!sourceNode || !targetNode) return;
+    
+    const sourceColumn = sourceNode.data.columns.find((col: Column) => col.id === sourceColumnId);
+    const targetColumn = targetNode.data.columns.find((col: Column) => col.id === targetColumnId);
+    
+    if (!sourceColumn || !targetColumn) return;
+
+    // Set pending connection for editing
+    set({
+      pendingConnection: {
+        connection: {
+          source: edge.source,
+          target: edge.target,
+          sourceHandle: edge.sourceHandle,
+          targetHandle: edge.targetHandle,
+        },
+        sourceTableName: sourceNode.data.name,
+        sourceColumnName: sourceColumn.name,
+        targetTableName: targetNode.data.name,
+        targetColumnName: targetColumn.name,
+      },
+      editingEdgeId: edgeId,
+    });
+  },
+
+  addTable: (position) => {
+    const newTable: TableData = {
+      id: `table-${Date.now()}`,
+      name: 'New Table',
+      columns: [
+        {
+          id: `col-${Date.now()}`,
+          name: 'id',
+          type: 'BIGINT',
+          isPrimaryKey: true,
+          isNullable: false,
+          defaultValue: 'AUTO_INCREMENT',
+        },
+      ],
+      indexes: [],
+      foreignKeys: [],
+    };
+
+    const newNode: Node = {
+      id: newTable.id,
+      type: 'table',
+      position,
+      data: newTable,
+    };
+
+    const { yNodes } = get();
+    if (yNodes) {
+      // Sync with Yjs
+      yNodes.push([newNode]);
+    } else {
+      // Fallback to local state if not connected
+      set({
+        nodes: [...get().nodes, newNode],
+      });
+    }
+    
+    set({ selectedNodeId: newTable.id });
+  },
+
+  updateTable: (nodeId, updates) => {
+    // Always update local state to preserve positions
+    set({
+      nodes: get().nodes.map((node) =>
+        node.id === nodeId
+          ? { ...node, data: { ...node.data, ...updates } }
+          : node
+      ),
+    });
+    
+    // Sync to Yjs if available
+    const { yNodes, nodes } = get();
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(nodes);
+    }
+  },
+
+  deleteTable: (nodeId) => {
+    // Always update local state
+    const newNodes = get().nodes.filter((node) => node.id !== nodeId);
+    const newEdges = get().edges.filter((edge) => 
+      edge.source !== nodeId && edge.target !== nodeId
+    );
+    
+    set({
+      nodes: newNodes,
+      edges: newEdges,
+    });
+    
+    // Clear selection if deleted node was selected
+    if (get().selectedNodeId === nodeId) {
+      set({ selectedNodeId: null });
+    }
+    
+    // Sync to Yjs if available
+    const { yNodes, yEdges } = get();
+    if (yNodes && yEdges) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+      yEdges.delete(0, yEdges.length);
+      yEdges.push(newEdges);
+    }
+  },
+
+  selectNode: (nodeId) => {
+    set({ selectedNodeId: nodeId });
+  },
+
+  setContextMenuNode: (nodeId) => {
+    set({ contextMenuNodeId: nodeId });
+  },
+
+  addColumn: (nodeId, column) => {
+    // Always update local state to preserve positions
+    set({
+      nodes: get().nodes.map((node) =>
+        node.id === nodeId
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                columns: [...node.data.columns, column],
+              },
+            }
+          : node
+      ),
+    });
+    
+    // Sync to Yjs if available
+    const { yNodes, nodes } = get();
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(nodes);
+    }
+  },
+
+  updateColumn: (nodeId, columnId, updates) => {
+    // Always update local state to preserve positions
+    set({
+      nodes: get().nodes.map((node) =>
+        node.id === nodeId
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                columns: node.data.columns.map((col: Column) =>
+                  col.id === columnId ? { ...col, ...updates } : col
+                ),
+              },
+            }
+          : node
+      ),
+    });
+    
+    // Sync to Yjs if available
+    const { yNodes, nodes } = get();
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(nodes);
+    }
+  },
+
+  removeColumn: (nodeId, columnId) => {
+    // Always update local state to preserve positions
+    set({
+      nodes: get().nodes.map((node) =>
+        node.id === nodeId
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                columns: node.data.columns.filter((col: Column) => col.id !== columnId),
+              },
+            }
+          : node
+      ),
+    });
+    
+    // Sync to Yjs if available
+    const { yNodes, nodes } = get();
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(nodes);
+    }
+  },
+
+  importDiagram: (diagramData) => {
+    const newNodes = diagramData.nodes || [];
+    const newEdges = diagramData.edges || [];
+    
+    // Clear current state and import new data
+    set({
+      nodes: newNodes,
+      edges: newEdges,
+      selectedNodeId: null,
+      contextMenuNodeId: null,
+      pendingConnection: null,
+    });
+    
+    // Sync to Yjs if available
+    const { yNodes, yEdges } = get();
+    if (yNodes && yEdges) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+      yEdges.delete(0, yEdges.length);
+      yEdges.push(newEdges);
+    }
+  },
+
+  initializeYjs: (doc: Y.Doc) => {
+    const yNodes = doc.getArray('nodes');
+    const yEdges = doc.getArray('edges');
+
+    // Set up observers for Yjs changes
+    yNodes.observe(() => {
+      get().syncFromYjs();
+    });
+
+    yEdges.observe(() => {
+      get().syncFromYjs();
+    });
+
+    set({ yNodes, yEdges });
+    
+    // Initial sync
+    get().syncFromYjs();
+  },
+
+  syncFromYjs: () => {
+    const { yNodes, yEdges } = get();
+    if (!yNodes || !yEdges) return;
+
+    const nodes = yNodes.toArray();
+    const edges = yEdges.toArray();
+
+    set({ nodes, edges });
+  },
+
+  // Incremental AI update functions
+  addFieldsToTable: (tableId: string, fields: Column[]) => {
+    const { nodes, yNodes } = get();
+    
+    const newNodes = nodes.map((node) => {
+      if (node.id === tableId) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            columns: [...node.data.columns, ...fields],
+          },
+        };
+      }
+      return node;
+    });
+
+    set({ nodes: newNodes });
+    
+    // Sync to Yjs if available
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+    }
+    
+    // Trigger flash animation
+    get().flashTable(tableId);
+  },
+
+  removeFieldsFromTable: (tableId: string, fieldIds: string[]) => {
+    const { nodes, yNodes } = get();
+    
+    const newNodes = nodes.map((node) => {
+      if (node.id === tableId) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            columns: node.data.columns.filter((col: Column) => !fieldIds.includes(col.id)),
+          },
+        };
+      }
+      return node;
+    });
+
+    set({ nodes: newNodes });
+    
+    // Sync to Yjs if available
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+    }
+    
+    // Trigger flash animation
+    get().flashTable(tableId);
+  },
+
+  modifyFieldsInTable: (tableId: string, fieldUpdates: { id: string; updates: Partial<Column> }[]) => {
+    const { nodes, yNodes } = get();
+    
+    const newNodes = nodes.map((node) => {
+      if (node.id === tableId) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            columns: node.data.columns.map((col: Column) => {
+              const update = fieldUpdates.find(u => u.id === col.id);
+              return update ? { ...col, ...update.updates } : col;
+            }),
+          },
+        };
+      }
+      return node;
+    });
+
+    set({ nodes: newNodes });
+    
+    // Sync to Yjs if available
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+    }
+    
+    // Trigger flash animation
+    get().flashTable(tableId);
+  },
+
+  addRelationships: (relationships: any[]) => {
+    const { edges, nodes, yEdges, yNodes } = get();
+    
+    // Create table name to ID mapping
+    const tableNameToId = new Map(nodes.map(n => [n.data.name, n.id]));
+    
+    let currentEdges = edges;
+    
+    relationships.forEach((rel, index) => {
+      const sourceTableId = tableNameToId.get(rel.sourceTable);
+      const targetTableId = tableNameToId.get(rel.targetTable);
+      
+      if (!sourceTableId || !targetTableId) {
+        console.warn(`Could not find table IDs for relationship: ${rel.sourceTable} -> ${rel.targetTable}`);
+        return;
+      }
+
+      // Find source and target columns
+      const sourceTable = nodes.find(n => n.id === sourceTableId);
+      const targetTable = nodes.find(n => n.id === targetTableId);
+      
+      const sourceColumn = sourceTable?.data.columns.find((col: any) => col.name === rel.sourceColumn);
+      const targetColumn = targetTable?.data.columns.find((col: any) => col.name === rel.targetColumn);
+      
+      console.log('🔍 Looking for columns:', {
+        rel,
+        sourceTable: sourceTable?.data.name,
+        targetTable: targetTable?.data.name,
+        sourceColumns: sourceTable?.data.columns.map((c: any) => c.name),
+        targetColumns: targetTable?.data.columns.map((c: any) => c.name),
+        foundSource: sourceColumn,
+        foundTarget: targetColumn
+      });
+      
+      if (!sourceColumn || !targetColumn) {
+        console.warn(`Could not find columns for relationship: ${rel.sourceColumn} -> ${rel.targetColumn}`);
+        return;
+      }
+
+      // Mark target column as foreign key
+      const updatedNodes = nodes.map(node => {
+        if (node.id === targetTableId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              columns: node.data.columns.map((col: any) => 
+                col.id === targetColumn.id 
+                  ? { ...col, isForeignKey: true, references: { table: sourceTableId, column: sourceColumn.id } }
+                  : col
+              )
+            }
+          };
+        }
+        return node;
+      });
+      
+      set({ nodes: updatedNodes });
+
+      // Create connection object like manual connections
+      const connection = {
+        source: sourceTableId,
+        target: targetTableId,
+        sourceHandle: `${sourceTableId}-${sourceColumn.id}-source`,
+        targetHandle: `${targetTableId}-${targetColumn.id}-target`,
+      };
+
+      const newEdge = {
+        id: `edge-${Date.now()}-${index}`,
+        type: 'foreign-key',
+        data: {
+          cardinality: rel.type,
+          label: rel.name || `fk_${rel.targetTable}_${rel.targetColumn}`,
+          onDelete: rel.onDelete || 'CASCADE',
+          onUpdate: rel.onUpdate || 'CASCADE',
+        },
+      };
+
+      console.log('🔗 Creating AI edge with handles:', {
+        sourceHandle: connection.sourceHandle,
+        targetHandle: connection.targetHandle,
+        sourceTableId,
+        targetTableId,
+        sourceColumnId: sourceColumn.id,
+        targetColumnId: targetColumn.id
+      });
+      
+      // Use ReactFlow's addEdge like manual connections do
+      currentEdges = addEdge({ ...connection, ...newEdge }, currentEdges);
+      console.log('AI edge created:', currentEdges[currentEdges.length - 1]);
+    });
+
+    set({ edges: currentEdges });
+    
+    // Sync to Yjs if available
+    if (yEdges && yNodes) {
+      yEdges.delete(0, yEdges.length);
+      yEdges.push(currentEdges);
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(get().nodes);
+    }
+    
+    // Flash related tables
+    relationships.forEach(rel => {
+      const sourceTableId = tableNameToId.get(rel.sourceTable);
+      const targetTableId = tableNameToId.get(rel.targetTable);
+      if (sourceTableId) get().flashTable(sourceTableId);
+      if (targetTableId) get().flashTable(targetTableId);
+    });
+  },
+
+  removeRelationships: (relationshipIds: string[]) => {
+    const { edges, yEdges } = get();
+    
+    const newEdges = edges.filter(edge => !relationshipIds.includes(edge.id));
+    set({ edges: newEdges });
+    
+    // Sync to Yjs if available
+    if (yEdges) {
+      yEdges.delete(0, yEdges.length);
+      yEdges.push(newEdges);
+    }
+  },
+
+  flashTable: (tableId: string) => {
+    const { animatingNodeIds } = get();
+    const newAnimatingIds = new Set(animatingNodeIds);
+    newAnimatingIds.add(tableId);
+    set({ animatingNodeIds: newAnimatingIds });
+    
+    // Remove animation after 1 second
+    setTimeout(() => {
+      const currentAnimatingIds = get().animatingNodeIds;
+      const updatedAnimatingIds = new Set(currentAnimatingIds);
+      updatedAnimatingIds.delete(tableId);
+      set({ animatingNodeIds: updatedAnimatingIds });
+    }, 1000);
+  },
+
+  autoLayout: () => {
+    const { nodes, edges, yNodes } = get();
+    
+    if (nodes.length === 0) return;
+    
+    // Build dependency graph (who depends on whom)
+    // If table A has a foreign key to table B, then A depends on B
+    const dependencies = new Map<string, Set<string>>(); // tableId -> set of tables it depends on
+    const dependents = new Map<string, Set<string>>();   // tableId -> set of tables that depend on it
+    
+    nodes.forEach(node => {
+      dependencies.set(node.id, new Set());
+      dependents.set(node.id, new Set());
+    });
+    
+    // Analyze foreign key relationships to build dependency graph
+    edges.forEach(edge => {
+      if (edge.source && edge.target && edge.type === 'foreign-key') {
+        // User wants: nodes with outputs on LEFT, nodes with inputs on RIGHT
+        // In ReactFlow: posts -> users means posts has output TO users
+        // So: users (receives input) should be RIGHT, posts (has output) should be LEFT
+        // This means: users depends on posts (reverse of typical FK dependency)
+        dependencies.get(edge.target)?.add(edge.source);
+        dependents.get(edge.source)?.add(edge.target);
+      }
+    });
+    
+    // Perform topological sorting to determine hierarchy levels
+    const levels: string[][] = [];
+    const visited = new Set<string>();
+    const inDegree = new Map<string, number>();
+    
+    // Calculate in-degrees (number of dependencies)
+    nodes.forEach(node => {
+      inDegree.set(node.id, dependencies.get(node.id)?.size || 0);
+    });
+    
+    // Find tables with no dependencies for the first level
+    while (visited.size < nodes.length) {
+      const currentLevel: string[] = [];
+      
+      // Find all tables with in-degree 0 (no unresolved dependencies)
+      nodes.forEach(node => {
+        if (!visited.has(node.id) && (inDegree.get(node.id) || 0) === 0) {
+          currentLevel.push(node.id);
+        }
+      });
+      
+      // If no tables found, we have a circular dependency - break it by taking the table with minimum dependencies
+      if (currentLevel.length === 0) {
+        let minDependencies = Infinity;
+        let selectedTable = '';
+        
+        nodes.forEach(node => {
+          if (!visited.has(node.id)) {
+            const deps = inDegree.get(node.id) || 0;
+            if (deps < minDependencies) {
+              minDependencies = deps;
+              selectedTable = node.id;
+            }
+          }
+        });
+        
+        if (selectedTable) {
+          currentLevel.push(selectedTable);
+        }
+      }
+      
+      // Add current level to levels array
+      levels.push(currentLevel);
+      
+      // Mark current level as visited and reduce in-degree for their dependents
+      currentLevel.forEach(tableId => {
+        visited.add(tableId);
+        
+        const tableDependents = dependents.get(tableId);
+        tableDependents?.forEach(dependentId => {
+          const currentInDegree = inDegree.get(dependentId) || 0;
+          inDegree.set(dependentId, Math.max(0, currentInDegree - 1));
+        });
+      });
+    }
+    
+    // Layout configuration
+    const COLUMN_WIDTH = 350;  // Horizontal spacing between columns
+    const ROW_HEIGHT = 180;    // Vertical spacing between tables in same column
+    const START_X = 100;       // Left margin
+    const START_Y = 100;       // Top margin
+    
+    const newNodes = [...nodes];
+    
+    // Position tables level by level (left to right)
+    levels.forEach((level, levelIndex) => {
+      const columnX = START_X + (levelIndex * COLUMN_WIDTH);
+      
+      // Sort tables in each level alphabetically for consistent positioning
+      const sortedLevel = level.sort((a, b) => {
+        const nodeA = nodes.find(n => n.id === a);
+        const nodeB = nodes.find(n => n.id === b);
+        return (nodeA?.data.name || '').localeCompare(nodeB?.data.name || '');
+      });
+      
+      sortedLevel.forEach((tableId, tableIndex) => {
+        const nodeIndex = newNodes.findIndex(n => n.id === tableId);
+        if (nodeIndex !== -1) {
+          // Center tables vertically if there are fewer tables than available space
+          const totalTables = sortedLevel.length;
+          const startY = START_Y + (totalTables > 1 ? 0 : ROW_HEIGHT / 2);
+          const tableY = startY + (tableIndex * ROW_HEIGHT);
+          
+          newNodes[nodeIndex] = {
+            ...newNodes[nodeIndex],
+            position: { x: columnX, y: tableY }
+          };
+        }
+      });
+    });
+    
+    // Apply the new positions
+    set({ nodes: newNodes });
+    
+    // Sync to Yjs if available
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+    }
+    
+    // Flash all tables to indicate layout change
+    nodes.forEach(node => {
+      setTimeout(() => get().flashTable(node.id), Math.random() * 300);
+    });
+  },
+}));
