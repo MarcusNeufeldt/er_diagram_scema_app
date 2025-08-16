@@ -6,7 +6,7 @@ interface UseDiagramLockingProps {
   userId: string;
 }
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 export const useDiagramLocking = ({ diagramId, userId }: UseDiagramLockingProps) => {
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -14,7 +14,7 @@ export const useDiagramLocking = ({ diagramId, userId }: UseDiagramLockingProps)
 
   const acquireLock = useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/diagrams/${diagramId}/lock`, {
+      const response = await fetch(`${API_BASE_URL}/diagrams/${diagramId}/lock`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -30,7 +30,8 @@ export const useDiagramLocking = ({ diagramId, userId }: UseDiagramLockingProps)
         return true;
       } else if (response.status === 409) {
         console.log('⚠️ Diagram is locked by another user');
-        setReadOnly(true, 'Another user');
+        const lockedBy = result.lockedBy || 'Another user';
+        setReadOnly(true, lockedBy);
         return false;
       } else {
         console.error('Failed to acquire lock:', result.message);
@@ -46,7 +47,7 @@ export const useDiagramLocking = ({ diagramId, userId }: UseDiagramLockingProps)
 
   const releaseLock = useCallback(async (): Promise<void> => {
     try {
-      await fetch(`${API_BASE_URL}/api/diagrams/${diagramId}/unlock`, {
+      await fetch(`${API_BASE_URL}/diagrams/${diagramId}/unlock`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

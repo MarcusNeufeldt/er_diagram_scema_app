@@ -1,6 +1,11 @@
-const { PrismaClient } = require('@prisma/client');
+const { createClient } = require('@libsql/client');
 
-const prisma = new PrismaClient();
+function createDbClient() {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL,
+    authToken: process.env.TURSO_AUTH_TOKEN,
+  });
+}
 
 // Vercel serverless function for POST /api/diagrams/[id]/lock
 module.exports = async (req, res) => {
@@ -15,65 +20,62 @@ module.exports = async (req, res) => {
     return res.status(400).json({ success: false, message: 'userId is required' });
   }
 
+  const client = createDbClient();
+  
   try {
-    // Use transaction to ensure atomicity
-    const result = await prisma.$transaction(async (tx) => {
-      // Find the diagram
-      const diagram = await tx.diagram.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          lockedByUserId: true,
-          lockExpiresAt: true,
-        },
-      });
-
-      if (!diagram) {
-        throw new Error('Diagram not found');
-      }
-
-      const now = new Date();
-      const lockExpiry = diagram.lockExpiresAt;
-      const isLockExpired = !lockExpiry || lockExpiry < now;
-
-      // Case 1: No lock or expired lock - grant the lock
-      if (!diagram.lockedByUserId || isLockExpired) {
-        await tx.diagram.update({
-          where: { id },
-          data: {
-            lockedByUserId: userId,
-            lockExpiresAt: new Date(now.getTime() + 5 * 60 * 1000), // 5 minutes
-          },
-        });
-        return { success: true, message: 'Lock acquired' };
-      }
-
-      // Case 2: Current user already has the lock - extend it (heartbeat)
-      if (diagram.lockedByUserId === userId) {
-        await tx.diagram.update({
-          where: { id },
-          data: {
-            lockExpiresAt: new Date(now.getTime() + 5 * 60 * 1000), // 5 minutes
-          },
-        });
-        return { success: true, message: 'Lock extended' };
-      }
-
-      // Case 3: Someone else has the lock and it's not expired
-      throw new Error('Diagram is locked by another user');
+    // Find the diagram with current lock info
+    const diagramResult = await client.execute({
+      sql: `SELECT d.id, d.lockedByUserId, d.lockExpiresAt, u.name as lockedByUserName
+            FROM Diagram d
+            LEFT JOIN User u ON d.lockedByUserId = u.id
+            WHERE d.id = ?`,
+      args: [id]
     });
 
-    res.status(200).json(result);
+    if (diagramResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Diagram not found' });
+    }
+
+    const diagram = diagramResult.rows[0];
+    const now = new Date();
+    const lockExpiry = diagram.lockExpiresAt ? new Date(diagram.lockExpiresAt) : null;
+    const isLockExpired = !lockExpiry || lockExpiry < now;
+
+    // Case 1: No lock or expired lock - grant the lock
+    if (!diagram.lockedByUserId || isLockExpired) {
+      const newLockExpiry = new Date(now.getTime() + 5 * 60 * 1000).toISOString();
+      
+      await client.execute({
+        sql: 'UPDATE Diagram SET lockedByUserId = ?, lockExpiresAt = ? WHERE id = ?',
+        args: [userId, newLockExpiry, id]
+      });
+      
+      return res.status(200).json({ success: true, message: 'Lock acquired' });
+    }
+
+    // Case 2: Current user already has the lock - extend it (heartbeat)
+    if (diagram.lockedByUserId === userId) {
+      const newLockExpiry = new Date(now.getTime() + 5 * 60 * 1000).toISOString();
+      
+      await client.execute({
+        sql: 'UPDATE Diagram SET lockExpiresAt = ? WHERE id = ?',
+        args: [newLockExpiry, id]
+      });
+      
+      return res.status(200).json({ success: true, message: 'Lock extended' });
+    }
+
+    // Case 3: Someone else has the lock and it's not expired
+    return res.status(409).json({ 
+      success: false, 
+      message: 'Diagram is locked by another user',
+      lockedBy: diagram.lockedByUserName || 'Another user',
+      lockExpiresAt: diagram.lockExpiresAt
+    });
   } catch (error) {
-    if (error.message === 'Diagram not found') {
-      return res.status(404).json({ success: false, message: error.message });
-    }
-    if (error.message === 'Diagram is locked by another user') {
-      return res.status(409).json({ success: false, message: error.message });
-    }
     console.error('Lock diagram error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   } finally {
-    await prisma.$disconnect();
+    client.close();
   }
 };
