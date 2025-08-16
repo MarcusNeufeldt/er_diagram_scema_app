@@ -12,7 +12,7 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
-      content: 'Hi! I\'m your AI database design assistant. I can help you create schemas, analyze your current design, or answer questions about database design. What would you like to work on?',
+      content: 'Hi! I\'m Data Modeler AI, your intelligent assistant for this visual database diagramming tool. I can help you create schemas, modify tables and relationships on the canvas, and analyze your designs. I understand the visual connections between your tables and will help maintain them as we work together. What would you like to build today?',
       timestamp: new Date(),
     },
   ]);

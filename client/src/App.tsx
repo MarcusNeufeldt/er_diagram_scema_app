@@ -12,7 +12,7 @@ import { useDiagramStore } from './stores/diagramStore';
 
 function App() {
   const { initializeCollaboration, doc } = useCollaborationStore();
-  const { initializeYjs, pendingConnection, confirmConnection, cancelConnection, editingEdgeId, edges } = useDiagramStore();
+  const { initializeYjs, pendingConnection, confirmConnection, cancelConnection, editingEdgeId, edges, undo, redo } = useDiagramStore();
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
 
   // Disable collaboration for now - comment out to enable
@@ -35,6 +35,28 @@ function App() {
       initializeYjs(doc);
     }
   }, [doc, initializeYjs]);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check if user is typing in an input or textarea
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+      } else if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
+        event.preventDefault();
+        redo();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">

@@ -235,7 +235,7 @@ Respond ONLY with valid JSON matching the required schema format. Do not include
         type: "function",
         function: {
           name: "modify_existing_schema",
-          description: "Modify the current database schema based on user requests",
+          description: "Modify the current database schema. IMPORTANT: Only use this if the user has provided specific, actionable details. If the request is vague (like 'add some fields'), ask for clarification first instead of calling this tool.",
           parameters: {
             type: "object",
             properties: {
@@ -277,21 +277,28 @@ Respond ONLY with valid JSON matching the required schema format. Do not include
   // Chat with AI about the schema (with function calling)
   async chatAboutSchema(userMessage, currentSchema = null, conversationHistory = []) {
     try {
-      const systemPrompt = `You are a helpful database design assistant. You can help users understand, modify, and improve their database schemas.
+      const systemPrompt = `You are an expert AI assistant embedded within a **visual, web-based database diagramming tool**. Your name is "Data Modeler AI".
 
-Current schema: ${currentSchema ? JSON.stringify(currentSchema, null, 2) : 'No schema loaded'}
+Your primary role is to help users design and modify database schemas by interacting with a visual canvas.
+
+**Key Concepts of Your Environment:**
+- The user is looking at an interactive **canvas**.
+- The tables are represented as **nodes** on the canvas.
+- The relationships (foreign keys) are represented as **edges** or **connections** between the nodes.
+- When you modify the schema, the canvas updates visually.
+
+**CRITICAL INSTRUCTIONS:**
+1. **Interpret "Connections":** When a user mentions "connections," "lines," or "links," they are ALWAYS referring to the **visual edges on the canvas**. They are NEVER talking about network or database server connections. If they say "connections are lost," it means the visual edges disappeared after your last modification. Acknowledge this and help them fix the schema to restore the relationships. **Do not lecture them about network connectivity or database servers.**
+2. **Handle Vague Requests:** If a user's request is too vague to be actionable (e.g., "add some fields" or "make it better"), **first ask for clarification or propose specific, sensible changes and ask for confirmation** before calling a tool. For example, suggest 3-4 useful columns for a table and ask "Would you like me to add these?"
+3. **Be Specific:** When you use a tool to modify the schema, your confirmation message should be specific about what you did (e.g., "✅ I've added the 'slug' and 'excerpt' fields to the 'posts' table.").
 
 You have access to these tools:
-1. generate_database_schema - Create a new database schema from scratch
-2. modify_existing_schema - Modify the current database schema 
-3. analyze_current_schema - Analyze the current schema and provide insights
+1. generate_database_schema - Create a new database schema from scratch.
+2. modify_existing_schema - Modify the current database schema.
+3. analyze_current_schema - Analyze the current schema and provide insights.
 
-Use your natural language understanding to determine when to use each tool:
-- If someone wants a new schema created, use generate_database_schema
-- If someone wants the current schema changed in any way, use modify_existing_schema  
-- If someone wants analysis without changes, use analyze_current_schema
-
-Trust your judgment. If someone provides feedback, suggestions, or improvements about the current schema, they probably want you to apply those changes.`;
+Current schema on the canvas:
+${currentSchema ? JSON.stringify(currentSchema, null, 2) : 'No schema is on the canvas yet.'}`;
 
       const messages = [
         { role: "system", content: systemPrompt },
@@ -336,7 +343,7 @@ Trust your judgment. If someone provides feedback, suggestions, or improvements 
         console.log('Function calling failed, falling back to text analysis:', functionCallError.response?.data?.error?.message);
         
         // Fallback: Use text-based intent detection
-        const intentPrompt = `You are a database design assistant. Analyze this user message and determine their intent:
+        const intentPrompt = `You are Data Modeler AI, an assistant embedded in a visual database diagramming tool. Analyze this user message and determine their intent:
 
 User message: "${userMessage}"
 

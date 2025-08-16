@@ -11,9 +11,14 @@ interface PendingConnection {
   targetColumnName: string;
 }
 
-interface DiagramState {
+// History state for manual undo/redo implementation
+interface HistoryState {
   nodes: Node[];
   edges: Edge[];
+}
+
+// Non-undoable UI state
+interface UIState {
   selectedNodeId: string | null;
   contextMenuNodeId: string | null;
   pendingConnection: PendingConnection | null;
@@ -21,6 +26,24 @@ interface DiagramState {
   animatingNodeIds: Set<string>;
   yNodes: Y.Array<any> | null;
   yEdges: Y.Array<any> | null;
+  
+  // History management
+  history: HistoryState[];
+  historyIndex: number;
+  maxHistorySize: number;
+}
+
+interface DiagramState extends UIState {
+  // Main diagram state
+  nodes: Node[];
+  edges: Edge[];
+  
+  // Undo/Redo Actions
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  clearHistory: () => void;
   
   // Actions
   onNodesChange: (changes: NodeChange[]) => void;
@@ -51,9 +74,36 @@ interface DiagramState {
   autoLayout: () => void;
 }
 
+// Helper function to save current state to history after an operation
+const saveToHistory = (get: any, set: any) => {
+  const state = get();
+  const currentState: HistoryState = {
+    nodes: JSON.parse(JSON.stringify(state.nodes)),
+    edges: JSON.parse(JSON.stringify(state.edges))
+  };
+  
+  // Remove any future states if we're not at the end
+  const newHistory = state.history.slice(0, state.historyIndex + 1);
+  newHistory.push(currentState);
+  
+  // Limit history size and update index
+  if (newHistory.length > state.maxHistorySize) {
+    newHistory.shift();
+    // Index stays the same when we remove from the beginning
+  } else {
+    // Move to the new state
+    set({ historyIndex: state.historyIndex + 1 });
+  }
+  
+  set({ history: newHistory });
+};
+
 export const useDiagramStore = create<DiagramState>((set, get) => ({
+  // Main diagram state
   nodes: [],
   edges: [],
+  
+  // UI state
   selectedNodeId: null,
   contextMenuNodeId: null,
   pendingConnection: null,
@@ -61,6 +111,50 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   animatingNodeIds: new Set(),
   yNodes: null,
   yEdges: null,
+  
+  // History state - start with initial empty state
+  history: [{ nodes: [], edges: [] }],
+  historyIndex: 0,
+  maxHistorySize: 50,
+  
+  // Undo/Redo methods
+  undo: () => {
+    const state = get();
+    if (state.historyIndex > 0) {
+      const previousState = state.history[state.historyIndex - 1];
+      set({
+        nodes: JSON.parse(JSON.stringify(previousState.nodes)),
+        edges: JSON.parse(JSON.stringify(previousState.edges)),
+        historyIndex: state.historyIndex - 1
+      });
+    }
+  },
+  
+  redo: () => {
+    const state = get();
+    if (state.historyIndex < state.history.length - 1) {
+      const nextState = state.history[state.historyIndex + 1];
+      set({
+        nodes: JSON.parse(JSON.stringify(nextState.nodes)),
+        edges: JSON.parse(JSON.stringify(nextState.edges)),
+        historyIndex: state.historyIndex + 1
+      });
+    }
+  },
+  
+  canUndo: () => {
+    const state = get();
+    return state.historyIndex > 0;
+  },
+  
+  canRedo: () => {
+    const state = get();
+    return state.historyIndex < state.history.length - 1;
+  },
+  
+  clearHistory: () => {
+    set({ history: [], historyIndex: -1 });
+  },
 
   onNodesChange: (changes) => {
     const newNodes = applyNodeChanges(changes, get().nodes);
@@ -206,6 +300,9 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       yEdges.delete(0, yEdges.length);
       yEdges.push(newEdges);
     }
+    
+    // Save state to history after adding connection
+    saveToHistory(get, set);
   },
 
   cancelConnection: () => {
@@ -292,6 +389,9 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     }
     
     set({ selectedNodeId: newTable.id });
+    
+    // Save state to history after adding table
+    saveToHistory(get, set);
   },
 
   updateTable: (nodeId, updates) => {
@@ -337,6 +437,9 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       yEdges.delete(0, yEdges.length);
       yEdges.push(newEdges);
     }
+    
+    // Save state to history after deleting table
+    saveToHistory(get, set);
   },
 
   selectNode: (nodeId) => {
@@ -442,6 +545,9 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       yEdges.delete(0, yEdges.length);
       yEdges.push(newEdges);
     }
+    
+    // Save state to history after importing (overwrites current history)
+    set({ history: [{ nodes: newNodes, edges: newEdges }], historyIndex: 0 });
   },
 
   initializeYjs: (doc: Y.Doc) => {

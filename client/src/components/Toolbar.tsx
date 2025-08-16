@@ -8,7 +8,17 @@ interface ToolbarProps {
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
-  const { addTable, nodes, edges, importDiagram, autoLayout } = useDiagramStore();
+  const { 
+    addTable, 
+    nodes, 
+    edges, 
+    importDiagram, 
+    autoLayout, 
+    undo, 
+    redo, 
+    canUndo, 
+    canRedo 
+  } = useDiagramStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddTable = () => {
@@ -18,6 +28,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
 
   const handleAutoLayout = () => {
     autoLayout();
+  };
+
+  const handleUndo = () => {
+    undo();
+  };
+
+  const handleRedo = () => {
+    redo();
   };
 
   const handleSave = () => {
@@ -168,6 +186,32 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         >
           <Plus size={16} />
           <span>Add Table</span>
+        </button>
+      </div>
+
+      {/* Divider */}
+      <div className="w-px h-6 bg-gray-300"></div>
+
+      {/* Undo/Redo */}
+      <div className="flex items-center space-x-2">
+        <button
+          onClick={handleUndo}
+          disabled={!canUndo()}
+          className="flex items-center space-x-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Undo (Ctrl+Z)"
+        >
+          <Undo size={16} />
+          <span>Undo</span>
+        </button>
+        
+        <button
+          onClick={handleRedo}
+          disabled={!canRedo()}
+          className="flex items-center space-x-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Redo (Ctrl+Y)"
+        >
+          <Redo size={16} />
+          <span>Redo</span>
         </button>
       </div>
 
