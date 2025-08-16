@@ -60,7 +60,7 @@ export const DiagramView: React.FC = () => {
       try {
         setLoading(true);
         const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
-        const response = await fetch(`${API_BASE_URL}/diagrams/${diagramId}`);
+        const response = await fetch(`${API_BASE_URL}/diagram?id=${diagramId}`);
         
         if (response.ok) {
           const diagram = await response.json();

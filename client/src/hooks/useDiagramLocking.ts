@@ -14,7 +14,7 @@ export const useDiagramLocking = ({ diagramId, userId }: UseDiagramLockingProps)
 
   const acquireLock = useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/diagrams/${diagramId}/lock`, {
+      const response = await fetch(`${API_BASE_URL}/diagram-lock?id=${diagramId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -47,7 +47,7 @@ export const useDiagramLocking = ({ diagramId, userId }: UseDiagramLockingProps)
 
   const releaseLock = useCallback(async (): Promise<void> => {
     try {
-      await fetch(`${API_BASE_URL}/diagrams/${diagramId}/unlock`, {
+      await fetch(`${API_BASE_URL}/diagram-unlock?id=${diagramId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

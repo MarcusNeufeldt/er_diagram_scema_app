@@ -7,7 +7,7 @@ function createDbClient() {
   });
 }
 
-// GET /api/diagrams/{id}
+// GET /api/diagram?id={id}
 async function getDiagram(req, res) {
   const { id } = req.query;
   const client = createDbClient();
@@ -70,7 +70,7 @@ async function getDiagram(req, res) {
   }
 }
 
-// PUT /api/diagrams/{id}
+// PUT /api/diagram?id={id}
 async function updateDiagram(req, res) {
   const { id } = req.query;
   const { userId, name, nodes, edges } = req.body;
