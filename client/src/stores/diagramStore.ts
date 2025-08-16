@@ -27,6 +27,10 @@ interface UIState {
   yNodes: Y.Array<any> | null;
   yEdges: Y.Array<any> | null;
   
+  // Grid settings
+  snapToGrid: boolean;
+  gridSize: number;
+  
   // History management
   history: HistoryState[];
   historyIndex: number;
@@ -72,7 +76,19 @@ interface DiagramState extends UIState {
   initializeYjs: (doc: Y.Doc) => void;
   syncFromYjs: () => void;
   autoLayout: () => void;
+  toggleGrid: () => void;
+  setGridSize: (size: number) => void;
 }
+
+// Utility function to snap position to grid
+const snapToGridPosition = (position: { x: number; y: number }, gridSize: number, snapEnabled: boolean) => {
+  if (!snapEnabled) return position;
+  
+  return {
+    x: Math.round(position.x / gridSize) * gridSize,
+    y: Math.round(position.y / gridSize) * gridSize
+  };
+};
 
 // Centralized history-aware state setter - the ONLY way to modify nodes/edges
 const createSetStateWithHistory = (get: any, set: any) => {
@@ -127,6 +143,10 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
   animatingNodeIds: new Set(),
   yNodes: null,
   yEdges: null,
+  
+  // Grid settings
+  snapToGrid: true,
+  gridSize: 25,
   
   // History state - start with initial empty state
   history: [{ nodes: [], edges: [] }],
@@ -387,6 +407,9 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
   },
 
   addTable: (position) => {
+    const { snapToGrid, gridSize } = get();
+    const snappedPosition = snapToGridPosition(position, gridSize, snapToGrid);
+    
     const newTable: TableData = {
       id: `table-${Date.now()}`,
       name: 'New Table',
@@ -407,7 +430,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
     const newNode: Node = {
       id: newTable.id,
       type: 'table',
-      position,
+      position: snappedPosition,
       data: newTable,
     };
 
@@ -919,11 +942,12 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
       });
     }
     
-    // Layout configuration
-    const COLUMN_WIDTH = 350;  // Horizontal spacing between columns
-    const ROW_HEIGHT = 180;    // Vertical spacing between tables in same column
-    const START_X = 100;       // Left margin
-    const START_Y = 100;       // Top margin
+    // Layout configuration with grid snapping support
+    const { snapToGrid, gridSize } = get();
+    const COLUMN_WIDTH = snapToGrid ? Math.ceil(350 / gridSize) * gridSize : 350;
+    const ROW_HEIGHT = snapToGrid ? Math.ceil(180 / gridSize) * gridSize : 180;
+    const START_X = snapToGrid ? Math.ceil(100 / gridSize) * gridSize : 100;
+    const START_Y = snapToGrid ? Math.ceil(100 / gridSize) * gridSize : 100;
     
     const newNodes = [...nodes];
     
@@ -946,9 +970,10 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
           const startY = START_Y + (totalTables > 1 ? 0 : ROW_HEIGHT / 2);
           const tableY = startY + (tableIndex * ROW_HEIGHT);
           
+          const finalPosition = snapToGridPosition({ x: columnX, y: tableY }, gridSize, snapToGrid);
           newNodes[nodeIndex] = {
             ...newNodes[nodeIndex],
-            position: { x: columnX, y: tableY }
+            position: finalPosition
           };
         }
       });
@@ -967,6 +992,14 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
     nodes.forEach(node => {
       setTimeout(() => get().flashTable(node.id), Math.random() * 300);
     });
+  },
+  
+  toggleGrid: () => {
+    set({ snapToGrid: !get().snapToGrid });
+  },
+  
+  setGridSize: (size: number) => {
+    set({ gridSize: size });
   }
   };
 });

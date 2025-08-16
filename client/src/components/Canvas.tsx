@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import ReactFlow, {
   Background,
+  BackgroundVariant,
   Controls,
   MiniMap,
   NodeTypes,
@@ -34,6 +35,8 @@ export const Canvas: React.FC = () => {
     selectNode,
     setContextMenuNode,
     editConnection,
+    snapToGrid,
+    gridSize,
   } = useDiagramStore();
 
   const { project } = useReactFlow();
@@ -49,14 +52,23 @@ export const Canvas: React.FC = () => {
     setContextMenuNode(null);
   }, [selectNode, setContextMenuNode]);
 
-  // Handle double-click to add new table
+  // Handle double-click to add new table (only on empty canvas)
   const handlePaneDoubleClick = useCallback(
     (event: React.MouseEvent) => {
-      const position = project({
-        x: event.clientX - 250, // Offset for sidebar
-        y: event.clientY - 60,  // Offset for toolbar
-      });
-      addTable(position);
+      // Check if the target is actually the pane (not a node or edge)
+      const target = event.target as HTMLElement;
+      
+      // Only create a new table if double-clicking on the background/pane
+      // Check for ReactFlow pane or background elements
+      if (target.classList.contains('react-flow__pane') || 
+          target.classList.contains('react-flow__background') ||
+          target.tagName === 'svg') {
+        const position = project({
+          x: event.clientX - 250, // Offset for sidebar
+          y: event.clientY - 60,  // Offset for toolbar
+        });
+        addTable(position);
+      }
     },
     [project, addTable]
   );
@@ -87,11 +99,16 @@ export const Canvas: React.FC = () => {
         connectionMode={ConnectionMode.Loose}
         connectionLineType={ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: '#3b82f6', strokeWidth: 2 }}
-        snapToGrid={false}
-        snapGrid={[15, 15]}
+        snapToGrid={snapToGrid}
+        snapGrid={[gridSize, gridSize]}
         attributionPosition="bottom-left"
       >
-        <Background />
+        <Background 
+          variant={snapToGrid ? BackgroundVariant.Dots : BackgroundVariant.Lines}
+          gap={snapToGrid ? gridSize : 20}
+          size={snapToGrid ? 2 : 1}
+          color={snapToGrid ? '#d1d5db' : '#f3f4f6'}
+        />
         <Controls />
         <MiniMap
           nodeStrokeColor={(n) => {

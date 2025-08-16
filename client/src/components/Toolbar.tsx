@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Plus, Download, Upload, Save, Undo, Redo, Bot, Layout } from 'lucide-react';
+import { Plus, Download, Upload, Save, Undo, Redo, Bot, Layout, Grid3x3 } from 'lucide-react';
 import { useDiagramStore } from '../stores/diagramStore';
 import { SQLParser, SQLGenerator } from '../lib/sqlParser';
 
@@ -17,7 +17,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
     undo, 
     redo, 
     canUndo, 
-    canRedo 
+    canRedo,
+    snapToGrid,
+    toggleGrid
   } = useDiagramStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -272,6 +274,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         >
           <Layout size={16} />
           <span>Auto Layout</span>
+        </button>
+        
+        <button
+          onClick={toggleGrid}
+          className={`flex items-center space-x-2 px-3 py-2 rounded-md transition-colors ${
+            snapToGrid 
+              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+          title={snapToGrid ? "Disable magnetic grid" : "Enable magnetic grid"}
+        >
+          <Grid3x3 size={16} />
+          <span>Grid</span>
         </button>
       </div>
 
