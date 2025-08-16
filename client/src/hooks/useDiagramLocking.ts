@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useDiagramStore } from '../stores/diagramStore';
 
 interface UseDiagramLockingProps {
@@ -12,7 +12,7 @@ export const useDiagramLocking = ({ diagramId, userId }: UseDiagramLockingProps)
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { setReadOnly, setCurrentDiagramId } = useDiagramStore();
 
-  const acquireLock = async (): Promise<boolean> => {
+  const acquireLock = useCallback(async (): Promise<boolean> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/diagrams/${diagramId}/lock`, {
         method: 'POST',
@@ -42,9 +42,9 @@ export const useDiagramLocking = ({ diagramId, userId }: UseDiagramLockingProps)
       setReadOnly(true, 'Connection error');
       return false;
     }
-  };
+  }, [diagramId, userId, setReadOnly]);
 
-  const releaseLock = async (): Promise<void> => {
+  const releaseLock = useCallback(async (): Promise<void> => {
     try {
       await fetch(`${API_BASE_URL}/api/diagrams/${diagramId}/unlock`, {
         method: 'POST',
@@ -57,9 +57,9 @@ export const useDiagramLocking = ({ diagramId, userId }: UseDiagramLockingProps)
     } catch (error) {
       console.error('Lock release error:', error);
     }
-  };
+  }, [diagramId, userId]);
 
-  const startHeartbeat = () => {
+  const startHeartbeat = useCallback(() => {
     if (heartbeatIntervalRef.current) {
       clearInterval(heartbeatIntervalRef.current);
     }
@@ -72,7 +72,7 @@ export const useDiagramLocking = ({ diagramId, userId }: UseDiagramLockingProps)
         stopHeartbeat();
       }
     }, 2 * 60 * 1000); // Every 2 minutes
-  };
+  }, [acquireLock]);
 
   const stopHeartbeat = () => {
     if (heartbeatIntervalRef.current) {

@@ -7,6 +7,11 @@
       "runtime": "@vercel/node@3.0.0"
     }
   },
+  "build": {
+    "env": {
+      "CI": "false"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
