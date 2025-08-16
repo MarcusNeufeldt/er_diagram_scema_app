@@ -4,6 +4,8 @@ import { TableData, Column } from '../types';
 import { useDiagramStore } from '../stores/diagramStore';
 import { ContextMenuPortal } from './ContextMenuPortal';
 import { FieldRow } from './FieldRow';
+import { Plus } from 'lucide-react';
+import { DEFAULT_FIELD_TYPE } from '../constants/dataTypes';
 
 interface TableNodeProps extends NodeProps {
   data: TableData;
@@ -37,12 +39,13 @@ export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
   const handleAddField = () => {
     const newColumn: Column = {
       id: `col-${Date.now()}`,
-      name: 'new_field',
-      type: 'VARCHAR(255)',
+      name: `field_${data.columns.length + 1}`,
+      type: DEFAULT_FIELD_TYPE,
       isPrimaryKey: false,
       isNullable: true,
     };
     addColumn(data.id, newColumn);
+    // The field will be automatically focused for editing
   };
 
   const handleDuplicate = () => {
@@ -99,16 +102,41 @@ export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
         </div>
 
         {/* Columns */}
-        <div className="p-0">
-          {data.columns.map((column: Column, index: number) => (
-            <FieldRow
-              key={column.id}
-              column={column}
-              tableId={data.id}
-              index={index}
-              totalColumns={data.columns.length}
-            />
-          ))}
+        {data.columns.length > 0 ? (
+          <div className="p-0">
+            {data.columns.map((column: Column, index: number) => (
+              <FieldRow
+                key={column.id}
+                column={column}
+                tableId={data.id}
+                index={index}
+                totalColumns={data.columns.length}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="px-4 py-3 text-sm text-gray-400 italic text-center">
+            No fields yet
+          </div>
+        )}
+
+        {/* Quick Add Field Button */}
+        <div className={`px-4 py-2 ${data.columns.length > 0 ? 'border-t border-gray-200' : ''}`}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddField();
+            }}
+            className={`w-full flex items-center justify-center gap-2 px-3 py-1.5 text-sm rounded transition-colors ${
+              data.columns.length === 0 
+                ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium' 
+                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+            }`}
+            title="Add new field"
+          >
+            <Plus size={16} />
+            <span>Add Field</span>
+          </button>
         </div>
 
       {/* Indexes and Foreign Keys info */}

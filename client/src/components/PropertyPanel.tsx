@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { useDiagramStore } from '../stores/diagramStore';
 import { Column, TableData } from '../types';
+import { DATA_TYPES, DEFAULT_FIELD_TYPE } from '../constants/dataTypes';
 
 export const PropertyPanel: React.FC = () => {
   const { nodes, selectedNodeId, updateTable, selectNode, addColumn, updateColumn, removeColumn } = useDiagramStore();
   const [newColumnName, setNewColumnName] = useState('');
-  const [newColumnType, setNewColumnType] = useState('VARCHAR(255)');
+  const [newColumnType, setNewColumnType] = useState(DEFAULT_FIELD_TYPE);
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId);
 
@@ -66,7 +67,7 @@ export const PropertyPanel: React.FC = () => {
 
     addColumn(selectedNodeId, newColumn);
     setNewColumnName('');
-    setNewColumnType('VARCHAR(255)');
+    setNewColumnType(DEFAULT_FIELD_TYPE);
   };
 
   const handleColumnUpdate = (columnId: string, field: keyof Column, value: any) => {
@@ -76,18 +77,6 @@ export const PropertyPanel: React.FC = () => {
   const handleRemoveColumn = (columnId: string) => {
     removeColumn(selectedNodeId, columnId);
   };
-
-  const commonTypes = [
-    'VARCHAR(255)',
-    'TEXT',
-    'INT',
-    'BIGINT',
-    'DECIMAL(10,2)',
-    'BOOLEAN',
-    'DATE',
-    'DATETIME',
-    'TIMESTAMP',
-  ];
 
   return (
     <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full">
@@ -162,7 +151,7 @@ export const PropertyPanel: React.FC = () => {
                     onChange={(e) => handleColumnUpdate(column.id, 'type', e.target.value)}
                     className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    {commonTypes.map((type) => (
+                    {DATA_TYPES.map((type) => (
                       <option key={type} value={type}>{type}</option>
                     ))}
                   </select>
@@ -217,7 +206,7 @@ export const PropertyPanel: React.FC = () => {
                 onChange={(e) => setNewColumnType(e.target.value)}
                 className="flex-1 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
-                {commonTypes.map((type) => (
+                {DATA_TYPES.map((type) => (
                   <option key={type} value={type}>{type}</option>
                 ))}
               </select>

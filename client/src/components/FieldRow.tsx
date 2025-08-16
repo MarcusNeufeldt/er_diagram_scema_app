@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position } from 'reactflow';
 import { Column } from '../types';
 import { useDiagramStore } from '../stores/diagramStore';
-import { Trash2, Edit2, Key, Hash, Type } from 'lucide-react';
+import { Trash2, Edit2, Key, Hash, Type, ChevronDown } from 'lucide-react';
+import { DATA_TYPES } from '../constants/dataTypes';
 
 interface FieldRowProps {
   column: Column;
@@ -10,21 +11,6 @@ interface FieldRowProps {
   index: number;
   totalColumns: number;
 }
-
-const DATA_TYPES = [
-  'VARCHAR(255)',
-  'INT',
-  'BIGINT',
-  'TEXT',
-  'DATE',
-  'DATETIME',
-  'BOOLEAN',
-  'DECIMAL(10,2)',
-  'FLOAT',
-  'DOUBLE',
-  'JSON',
-  'UUID',
-];
 
 export const FieldRow: React.FC<FieldRowProps> = ({ 
   column, 
@@ -38,6 +24,21 @@ export const FieldRow: React.FC<FieldRowProps> = ({
   const [editType, setEditType] = useState(column.type);
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowTypeDropdown(false);
+      }
+    };
+
+    if (showTypeDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showTypeDropdown]);
 
   const handleSave = () => {
     updateColumn(tableId, column.id, {
@@ -92,27 +93,49 @@ export const FieldRow: React.FC<FieldRowProps> = ({
             }}
             autoFocus
           />
-          <div className="relative">
-            <input
-              type="text"
-              value={editType}
-              onChange={(e) => setEditType(e.target.value)}
-              onFocus={() => setShowTypeDropdown(true)}
-              className="w-32 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:border-blue-500"
-            />
+          <div className="relative" ref={dropdownRef}>
+            <div className="relative">
+              <input
+                type="text"
+                value={editType}
+                onChange={(e) => setEditType(e.target.value)}
+                onFocus={() => {
+                  setShowTypeDropdown(true);
+                  // Clear the input to show all options
+                  setEditType('');
+                }}
+                placeholder="Type or select..."
+                className="nodrag w-32 pr-6 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:border-blue-500"
+              />
+              <ChevronDown 
+                size={14} 
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+              />
+            </div>
             {showTypeDropdown && (
-              <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded shadow-lg z-50 max-h-48 overflow-y-auto">
+              <div 
+                className="nodrag absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded shadow-lg z-50 max-h-48 overflow-y-auto"
+                onWheel={(e) => {
+                  e.stopPropagation();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 {DATA_TYPES.filter(type => 
                   type.toLowerCase().includes(editType.toLowerCase())
                 ).map((type) => (
                   <button
                     key={type}
                     onClick={() => handleTypeSelect(type)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                    className="nodrag w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
                   >
                     {type}
                   </button>
                 ))}
+                {DATA_TYPES.filter(type => 
+                  type.toLowerCase().includes(editType.toLowerCase())
+                ).length === 0 && (
+                  <div className="px-3 py-2 text-sm text-gray-500">No matches found</div>
+                )}
               </div>
             )}
           </div>
