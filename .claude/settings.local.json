@@ -32,7 +32,10 @@
       "Bash(mv:*)",
       "Bash(npm init:*)",
       "Bash(npx prisma generate:*)",
-      "Bash(vercel:*)"
+      "Bash(vercel:*)",
+      "WebFetch(domain:draw-io-clone-335ze9e4d-marcusneufeldt-googlemailcs-projects.vercel.app)",
+      "WebFetch(domain:er-diagram-scema-app.vercel.app)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": [],

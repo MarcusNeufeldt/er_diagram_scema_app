@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/MarcusNeufeldt/er_diagram_scema_app#readme",
   "dependencies": {
+    "@libsql/client": "^0.15.11",
     "@prisma/client": "^6.14.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
