@@ -82,13 +82,13 @@ function App() {
         // Cleanup will be handled by the collaboration store
       };
     }
-  }, [initializeCollaboration]);
+  }, [ENABLE_COLLABORATION, initializeCollaboration]);
 
   useEffect(() => {
     if (ENABLE_COLLABORATION && doc) {
       initializeYjs(doc);
     }
-  }, [doc, initializeYjs]);
+  }, [ENABLE_COLLABORATION, doc, initializeYjs]);
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {

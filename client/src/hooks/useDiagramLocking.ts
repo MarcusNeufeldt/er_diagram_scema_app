@@ -101,7 +101,7 @@ export const useDiagramLocking = ({ diagramId, userId }: UseDiagramLockingProps)
       releaseLock();
       setCurrentDiagramId(null);
     };
-  }, [diagramId, userId]);
+  }, [diagramId, userId, acquireLock, startHeartbeat, setCurrentDiagramId, releaseLock]);
 
   // Cleanup on component unmount
   useEffect(() => {

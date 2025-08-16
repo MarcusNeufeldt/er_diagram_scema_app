@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position } from 'reactflow';
 import { Column } from '../types';
 import { useDiagramStore } from '../stores/diagramStore';
-import { Trash2, Edit2, Key, Hash, Type, ChevronDown } from 'lucide-react';
+import { Trash2, Edit2, Key, Hash, ChevronDown } from 'lucide-react';
 import { DATA_TYPES } from '../constants/dataTypes';
 
 interface FieldRowProps {
@@ -66,17 +66,6 @@ export const FieldRow: React.FC<FieldRowProps> = ({
     setShowTypeDropdown(false);
   };
 
-  const togglePrimaryKey = () => {
-    updateColumn(tableId, column.id, {
-      isPrimaryKey: !column.isPrimaryKey,
-    });
-  };
-
-  const toggleNullable = () => {
-    updateColumn(tableId, column.id, {
-      isNullable: !column.isNullable,
-    });
-  };
 
   if (isEditing) {
     return (

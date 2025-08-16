@@ -31,7 +31,8 @@
       "Bash(move test-reasoning-modes.js tests/ai/)",
       "Bash(mv:*)",
       "Bash(npm init:*)",
-      "Bash(npx prisma generate:*)"
+      "Bash(npx prisma generate:*)",
+      "Bash(vercel:*)"
     ],
     "deny": [],
     "ask": [],

@@ -142,3 +142,4 @@ Dockerfile.dev
 
 # Misc
 .vscode/settings.json
+.vercel
