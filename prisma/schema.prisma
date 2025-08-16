@@ -1,0 +1,35 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("TURSO_DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  diagrams  Diagram[]
+  createdAt DateTime  @default(now())
+}
+
+model Diagram {
+  id              String    @id @default(cuid())
+  name            String
+  nodes           Json      // Store the ReactFlow nodes array
+  edges           Json      // Store the ReactFlow edges array
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Locking Mechanism Fields
+  lockedByUserId  String?
+  lockExpiresAt   DateTime?
+  
+  // User Relationship
+  owner     User      @relation(fields: [ownerId], references: [id])
+  ownerId   String
+}

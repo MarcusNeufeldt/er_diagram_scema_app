@@ -7,13 +7,67 @@ import { CollaboratorCursors } from './components/CollaboratorCursors';
 import { WelcomeModal } from './components/WelcomeModal';
 import { RelationshipModal } from './components/RelationshipModal';
 import { AIChatPanel } from './components/AIChatPanel';
+import ReadOnlyBanner from './components/ReadOnlyBanner';
 import { useCollaborationStore } from './stores/collaborationStore';
 import { useDiagramStore } from './stores/diagramStore';
+import { useDiagramLocking } from './hooks/useDiagramLocking';
+import { userService } from './services/userService';
 
 function App() {
   const { initializeCollaboration, doc } = useCollaborationStore();
-  const { initializeYjs, pendingConnection, confirmConnection, cancelConnection, editingEdgeId, edges, undo, redo } = useDiagramStore();
+  const { initializeYjs, pendingConnection, confirmConnection, cancelConnection, editingEdgeId, edges, undo, redo, importDiagram } = useDiagramStore();
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(userService.getCurrentUser());
+
+  // For demo purposes, use a fixed diagram ID. In production, this would come from routing
+  const DEMO_DIAGRAM_ID = 'demo-diagram-1';
+
+  // Initialize user if not logged in
+  useEffect(() => {
+    if (!currentUser) {
+      const user = userService.promptForUser();
+      if (user) {
+        setCurrentUser(user);
+      }
+    }
+  }, [currentUser]);
+
+  // Initialize diagram locking
+  useDiagramLocking({
+    diagramId: DEMO_DIAGRAM_ID,
+    userId: currentUser?.id || '',
+  });
+
+  // Load diagram from database
+  useEffect(() => {
+    const loadDiagram = async () => {
+      if (!currentUser) return;
+
+      try {
+        const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+        const response = await fetch(`${API_BASE_URL}/api/diagrams/${DEMO_DIAGRAM_ID}`);
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.diagram) {
+            console.log('📊 Loading diagram from database...');
+            importDiagram({
+              nodes: result.diagram.nodes || [],
+              edges: result.diagram.edges || [],
+            });
+            console.log('✅ Diagram loaded successfully');
+          }
+        } else {
+          console.log('ℹ️ No existing diagram found, starting with empty canvas');
+        }
+      } catch (error) {
+        console.error('Failed to load diagram:', error);
+        console.log('ℹ️ Starting with empty canvas');
+      }
+    };
+
+    loadDiagram();
+  }, [currentUser, importDiagram]);
 
   // Disable collaboration for now - comment out to enable
   const ENABLE_COLLABORATION = false;
@@ -60,6 +114,7 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
+      <ReadOnlyBanner />
       <Toolbar onOpenAIChat={() => setIsAIChatOpen(true)} />
       <div className="flex flex-1 overflow-hidden relative">
         <ReactFlowProvider>

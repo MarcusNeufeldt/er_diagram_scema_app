@@ -35,6 +35,11 @@ interface UIState {
   history: HistoryState[];
   historyIndex: number;
   maxHistorySize: number;
+  
+  // Locking state
+  isReadOnly: boolean;
+  lockedBy: string | null;
+  currentDiagramId: string | null;
 }
 
 interface DiagramState extends UIState {
@@ -82,6 +87,10 @@ interface DiagramState extends UIState {
   autoLayout: () => void;
   toggleGrid: () => void;
   setGridSize: (size: number) => void;
+  
+  // Locking actions
+  setReadOnly: (isReadOnly: boolean, lockedBy?: string | null) => void;
+  setCurrentDiagramId: (diagramId: string | null) => void;
 }
 
 // Utility function to snap position to grid
@@ -156,6 +165,11 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
   history: [{ nodes: [], edges: [] }],
   historyIndex: 0,
   maxHistorySize: 50,
+  
+  // Locking state
+  isReadOnly: false,
+  lockedBy: null,
+  currentDiagramId: null,
   
   // Undo/Redo methods
   undo: () => {
@@ -1005,6 +1019,14 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
   
   setGridSize: (size: number) => {
     set({ gridSize: size });
+  },
+  
+  setReadOnly: (isReadOnly: boolean, lockedBy?: string | null) => {
+    set({ isReadOnly, lockedBy: lockedBy || null });
+  },
+  
+  setCurrentDiagramId: (diagramId: string | null) => {
+    set({ currentDiagramId: diagramId });
   },
   
   addStickyNote: (position) => {

@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Plus, Download, Upload, Save, Undo, Redo, Bot, Layout, Grid3x3, StickyNote, Square, Circle, Diamond } from 'lucide-react';
 import { useDiagramStore } from '../stores/diagramStore';
 import { SQLParser, SQLGenerator } from '../lib/sqlParser';
+import { userService } from '../services/userService';
 
 interface ToolbarProps {
   onOpenAIChat: () => void;
@@ -21,7 +22,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
     snapToGrid,
     toggleGrid,
     addStickyNote,
-    addShape
+    addShape,
+    isReadOnly,
+    currentDiagramId
   } = useDiagramStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,35 +55,54 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
     redo();
   };
 
-  const handleSave = () => {
-    // Export current diagram as JSON with full state
-    const diagramData = {
-      version: '1.0',
-      nodes,
-      edges,
-      viewport: {
-        // We'll add viewport data later if needed
-        zoom: 1,
-        x: 0,
-        y: 0
-      },
-      metadata: {
-        created: new Date().toISOString(),
-        title: 'Database Diagram',
-        description: 'Exported from Data Modeler'
+  const handleSave = async () => {
+    if (!currentDiagramId) {
+      console.warn('No diagram ID available for saving');
+      return;
+    }
+
+    const currentUser = userService.getCurrentUser();
+    if (!currentUser) {
+      alert('You must be logged in to save');
+      return;
+    }
+
+    if (isReadOnly) {
+      alert('Cannot save in read-only mode');
+      return;
+    }
+
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+      
+      const response = await fetch(`${API_BASE_URL}/api/diagrams/${currentDiagramId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          name: 'Database Diagram',
+          nodes,
+          edges,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        console.log('✅ Diagram saved successfully');
+        // Could show a success toast here
+      } else if (response.status === 403) {
+        alert(result.message || 'Your editing session has expired. Please reload to get the latest version.');
+      } else {
+        console.error('Save failed:', result.message);
+        alert('Failed to save diagram: ' + result.message);
       }
-    };
-    
-    const blob = new Blob([JSON.stringify(diagramData, null, 2)], {
-      type: 'application/json',
-    });
-    
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `diagram-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Save error:', error);
+      alert('Failed to save diagram due to connection error');
+    }
   };
 
   const handleExport = () => {
@@ -196,7 +218,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
       <div className="flex items-center space-x-2">
         <button
           onClick={handleAddTable}
-          className="flex items-center space-x-2 px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+          disabled={isReadOnly}
+          className="flex items-center space-x-2 px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-400"
         >
           <Plus size={16} />
           <span>Add Table</span>
@@ -210,7 +233,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
       <div className="flex items-center space-x-2">
         <button
           onClick={handleAddStickyNote}
-          className="flex items-center space-x-2 px-3 py-2 bg-yellow-100 text-yellow-700 rounded-md hover:bg-yellow-200 transition-colors"
+          disabled={isReadOnly}
+          className="flex items-center space-x-2 px-3 py-2 bg-yellow-100 text-yellow-700 rounded-md hover:bg-yellow-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Add sticky note for comments and documentation"
         >
           <StickyNote size={16} />
@@ -219,7 +243,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         
         <button
           onClick={() => handleAddShape('rectangle')}
-          className="flex items-center space-x-2 px-2 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+          disabled={isReadOnly}
+          className="flex items-center space-x-2 px-2 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Add rectangle shape"
         >
           <Square size={16} />
@@ -227,7 +252,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         
         <button
           onClick={() => handleAddShape('circle')}
-          className="flex items-center space-x-2 px-2 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+          disabled={isReadOnly}
+          className="flex items-center space-x-2 px-2 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Add circle shape"
         >
           <Circle size={16} />
@@ -235,7 +261,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         
         <button
           onClick={() => handleAddShape('diamond')}
-          className="flex items-center space-x-2 px-2 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+          disabled={isReadOnly}
+          className="flex items-center space-x-2 px-2 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Add diamond shape"
         >
           <Diamond size={16} />
@@ -249,7 +276,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
       <div className="flex items-center space-x-2">
         <button
           onClick={handleUndo}
-          disabled={!canUndo()}
+          disabled={!canUndo() || isReadOnly}
           className="flex items-center space-x-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Undo (Ctrl+Z)"
         >
@@ -259,7 +286,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         
         <button
           onClick={handleRedo}
-          disabled={!canRedo()}
+          disabled={!canRedo() || isReadOnly}
           className="flex items-center space-x-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Redo (Ctrl+Y)"
         >

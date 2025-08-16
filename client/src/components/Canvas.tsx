@@ -41,6 +41,7 @@ export const Canvas: React.FC = () => {
     editConnection,
     snapToGrid,
     gridSize,
+    isReadOnly,
   } = useDiagramStore();
 
   const { project } = useReactFlow();
@@ -105,8 +106,8 @@ export const Canvas: React.FC = () => {
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         onPaneClick={handlePaneClick}
-        onDoubleClick={handlePaneDoubleClick}
-        onEdgeDoubleClick={handleEdgeDoubleClick}
+        onDoubleClick={isReadOnly ? undefined : handlePaneDoubleClick}
+        onEdgeDoubleClick={isReadOnly ? undefined : handleEdgeDoubleClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         connectionMode={ConnectionMode.Loose}
@@ -115,6 +116,13 @@ export const Canvas: React.FC = () => {
         snapToGrid={snapToGrid}
         snapGrid={[gridSize, gridSize]}
         attributionPosition="bottom-left"
+        nodesDraggable={!isReadOnly}
+        nodesConnectable={!isReadOnly}
+        elementsSelectable={!isReadOnly}
+        panOnDrag={true}
+        zoomOnScroll={true}
+        zoomOnPinch={true}
+        zoomOnDoubleClick={false}
       >
         <Background 
           variant={snapToGrid ? BackgroundVariant.Dots : BackgroundVariant.Lines}

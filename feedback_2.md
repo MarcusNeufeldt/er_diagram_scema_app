@@ -1,178 +1,169 @@
-Of course. I've done a deep dive into your implementation of the undo/redo feature.
+Of course. Here is a comprehensive implementation plan for your senior developer.
 
-First, let me commend you on your approach. Creating detailed markdown summaries like `UNDO_REDO_IMPLEMENTATION.md` and `UNDO_REDO_BUG_FIX.md` is an outstanding practice. It shows you're not just coding, but thinking deeply about the architecture and user experience.
-
-You have correctly identified that this feature is critical and that its current state is unreliable. Your bug fix summary (`UNDO_REDO_BUG_FIX.md`) correctly identified and fixed a major logic flaw in how the history was saved. **That was an excellent catch.**
-
-However, after reviewing the current implementation in `diagramStore.ts`, I see a more fundamental architectural issue that is causing the unreliability. The good news is that it's very fixable.
-
-### The Core Problem: Manual History Management is Incomplete
-
-Your current approach is to manually call `saveToHistory()` after specific, major operations like `addTable`, `deleteTable`, and `confirmConnection`.
-
-**The Issue:** This approach misses a huge number of common user actions. **Any state change that doesn't explicitly call `saveToHistory` will not be recorded, leading to a broken and confusing undo stack.**
-
-Here are the critical user actions that are **currently NOT being saved** to the undo history:
-
-*   **Moving a table** (Node position change)
-*   **Renaming a table** (`updateTable`)
-*   **Adding a column** (`addColumn`)
-*   **Updating a column** (changing name, type, PK, nullable status via `updateColumn`)
-*   **Removing a column** (`removeColumn`)
-*   **Auto-layout** (`autoLayout`)
-*   **Editing a relationship** (via `confirmConnection` in `isEditing` mode)
-
-This explains why it feels so unreliable. A user might move three tables, rename one, and then add a column. When they press Ctrl+Z, they expect the column addition to be reverted. Instead, the last *major* action (like adding a whole table) is reverted, wiping out all their recent small changes. This is a frustrating user experience.
+This document outlines the architecture and step-by-step tasks required to implement a robust, Vercel-native collaboration system using a diagram locking mechanism and Turso for persistence.
 
 ---
 
-### The Solution: An Automatic, Middleware-Inspired Approach
+### **Implementation Plan: Diagram Locking & Persistence**
 
-Instead of manually sprinkling `saveToHistory()` calls everywhere, we need a system that **automatically captures any state change** to `nodes` or `edges` and saves it to the history.
+**Objective:** Transition the application from an in-memory, single-user tool to a persistent, multi-user application that prevents simultaneous editing conflicts. This will be achieved by implementing a "check-out/locking" system for diagrams, hosted entirely on Vercel and using Turso as the database.
 
-This is exactly what Zustand middleware does, but we can build a lightweight version of it directly into your store. The key is to centralize state updates through a single, history-aware setter function.
+**Core Technology Stack:**
 
-#### Step 1: Create a `setStateWithHistory` function in your store
+*   **Frontend:** React, ReactFlow, Zustand (Client-side)
+*   **Backend:** Vercel Serverless Functions (API)
+*   **Database:** Turso (via Vercel Marketplace Integration)
+*   **ORM:** Prisma
 
-This function will become the **only** way you should modify `nodes` and `edges`. It will automatically handle the history logic.
+---
 
-```typescript
-// Inside your create<DiagramState>((set, get) => ({ ... })) in diagramStore.ts
+### **Phase 1: Backend & Database Setup (est. 2-3 hours)**
 
-// 1. Define the new history-aware setter
-const setStateWithHistory = (newState: Partial<DiagramState>, actionName: string) => {
-  const { history, historyIndex, maxHistorySize } = get();
-  
-  // Apply the new state
-  set(newState);
+The goal of this phase is to establish the data persistence layer and the core API logic for the locking mechanism.
 
-  // Get the *full* state after the update
-  const { nodes, edges } = get();
+**Task 1.1: Provision and Configure Turso Database**
+1.  Navigate to the Vercel project dashboard.
+2.  Go to the "Storage" tab and add **Turso** from the Vercel Marketplace.
+3.  Vercel will automatically provision the database and add `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` to the project's environment variables.
 
-  const currentState: HistoryState = { 
-    nodes: JSON.parse(JSON.stringify(nodes)), 
-    edges: JSON.parse(JSON.stringify(edges)) 
-  };
+**Task 1.2: Set Up Prisma Schema**
+1.  Create a `prisma` directory in the project root.
+2.  Create `prisma/schema.prisma`.
+3.  Define the datasource and models. The initial schema should be:
 
-  // Truncate history if we've undone actions
-  const newHistory = history.slice(0, historyIndex + 1);
-  newHistory.push(currentState);
-  
-  if (newHistory.length > maxHistorySize) {
-    newHistory.shift();
-  }
-  
-  console.log(`History saved for: ${actionName} (total states: ${newHistory.length})`);
-  
-  set({ 
-    history: newHistory, 
-    historyIndex: newHistory.length - 1 
-  });
-};
+    ```prisma
+    // prisma/schema.prisma
 
-// ... then inside the returned store object ...
-```
+    generator client {
+      provider = "prisma-client-js"
+    }
 
-#### Step 2: Refactor ALL State-Changing Actions to Use `setStateWithHistory`
+    datasource db {
+      provider = "sqlite"
+      url      = env("TURSO_DATABASE_URL")
+    }
 
-Now, go through every function in `diagramStore.ts` that modifies `nodes` or `edges` and refactor it to use this new function. **Remove all manual calls to `saveToHistory`**.
+    model User {
+      id        String    @id @default(cuid())
+      email     String    @unique
+      name      String?
+      diagrams  Diagram[]
+      createdAt DateTime  @default(now())
+    }
 
-Here are some examples:
+    model Diagram {
+      id              String    @id @default(cuid())
+      name            String
+      nodes           Json      // Store the ReactFlow nodes array
+      edges           Json      // Store the ReactFlow edges array
+      createdAt       DateTime  @default(now())
+      updatedAt       DateTime  @updatedAt
+      
+      // Locking Mechanism Fields
+      lockedByUserId  String?
+      lockExpiresAt   DateTime?
+      
+      // User Relationship
+      owner     User      @relation(fields: [ownerId], references: [id])
+      ownerId   String
+    }
+    ```
+4.  Run `npm install prisma @prisma/client` in the `server/` directory (or project root if you are moving to a monorepo structure).
+5.  Run `npx prisma generate` to generate the Prisma Client.
+6.  Run `npx prisma db push` to sync the schema with the live Turso database.
 
-```typescript
-// --- Refactored Actions in diagramStore.ts ---
+**Task 1.3: Create API Endpoints for Locking**
+*Create serverless functions under a new `api/` directory in the project root. You will need to move your existing `server/` logic into this structure.*
 
-// This one was a major source of bugs. applyNodeChanges should be undoable.
-onNodesChange: (changes) => {
-  const newNodes = applyNodeChanges(changes, get().nodes);
-  setStateWithHistory({ nodes: newNodes }, 'Node Change (move/select)');
-  
-  // Your Yjs sync logic can remain
-  const { yNodes } = get();
-  if (yNodes && changes.some(c => c.type === 'position' && !c.dragging)) {
-    yNodes.delete(0, yNodes.length);
-    yNodes.push(newNodes);
-  }
-},
+1.  **`api/diagrams/[id]/lock.ts` (POST)**
+    *   **Input:** `userId` (from request body/auth).
+    *   **Logic:**
+        *   Find the diagram by `id`.
+        *   If `lockExpiresAt` is null or in the past (stale lock), grant the lock:
+            *   Update `lockedByUserId` to the current `userId`.
+            *   Set `lockExpiresAt` to `now() + 5 minutes`.
+            *   Return `200 OK` with `{ success: true }`.
+        *   If `lockedByUserId` is the current `userId`, it's a heartbeat. Extend the lock:
+            *   Update `lockExpiresAt` to `now() + 5 minutes`.
+            *   Return `200 OK` with `{ success: true }`.
+        *   If `lockExpiresAt` is in the future and `lockedByUserId` is someone else:
+            *   Return `409 Conflict` with `{ success: false, message: "Diagram is locked by another user." }`.
+    *   **Note:** Use Prisma transactions to ensure atomicity when reading and writing the lock.
 
-addTable: (position) => {
-  const newTable: TableData = { /* ... */ };
-  const newNode: Node = { /* ... */ };
-  const currentNodes = get().nodes;
-  setStateWithHistory({ 
-    nodes: [...currentNodes, newNode],
-    selectedNodeId: newNode.id 
-  }, 'Add Table');
-},
+2.  **`api/diagrams/[id]/unlock.ts` (POST)**
+    *   **Input:** `userId`.
+    *   **Logic:**
+        *   Find the diagram by `id`.
+        *   If `lockedByUserId` matches the current `userId`, release the lock:
+            *   Set `lockedByUserId` and `lockExpiresAt` to `null`.
+            *   Return `200 OK`.
+        *   Otherwise, return `200 OK` (no action needed).
 
-deleteTable: (nodeId) => {
-  const currentNodes = get().nodes;
-  const currentEdges = get().edges;
-  const newNodes = currentNodes.filter((node) => node.id !== nodeId);
-  const newEdges = currentEdges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId);
-  
-  setStateWithHistory({ 
-    nodes: newNodes, 
-    edges: newEdges,
-    selectedNodeId: get().selectedNodeId === nodeId ? null : get().selectedNodeId
-  }, 'Delete Table');
-},
+3.  **`api/diagrams/[id].ts` (GET & PUT)**
+    *   **GET:** Fetch diagram `nodes` and `edges` and also return the current `lockedByUserId` and `lockExpiresAt` so the client knows the initial state.
+    *   **PUT:** This is your "Save" endpoint. Before updating the diagram's `nodes` and `edges`, it **must verify the lock**.
+        *   Check if `lockedByUserId` matches the current `userId` and the lock has not expired.
+        *   If the lock is invalid, return `403 Forbidden`.
+        *   If valid, update the diagram content and return `200 OK`.
 
-updateColumn: (nodeId, columnId, updates) => {
-  const newNodes = get().nodes.map((node) =>
-    node.id === nodeId
-      ? {
-          ...node,
-          data: {
-            ...node.data,
-            columns: node.data.columns.map((col: Column) =>
-              col.id === columnId ? { ...col, ...updates } : col
-            ),
-          },
-        }
-      : node
-  );
-  setStateWithHistory({ nodes: newNodes }, 'Update Column');
-},
+---
 
-// You need to apply this pattern to ALL other modifying functions:
-// onEdgesChange, onConnect, confirmConnection, updateTable, addColumn, removeColumn, autoLayout, etc.
-```
+### **Phase 2: Frontend Implementation (est. 4-6 hours)**
 
-#### Step 3: Fix `importDiagram`
+The goal of this phase is to make the client "lock-aware," implementing the read-only mode and the heartbeat mechanism.
 
-When a user imports a new diagram, the undo history should be completely reset. Your current implementation is close, but needs a slight adjustment.
+**Task 2.1: Create a State Management Slice for Locking**
+1.  In `client/src/stores/diagramStore.ts` (or a new `uiStore`), add state for the lock:
 
-```typescript
-// --- Refactored importDiagram ---
-importDiagram: (diagramData) => {
-  const newNodes = diagramData.nodes || [];
-  const newEdges = diagramData.edges || [];
-  
-  // Set the state directly, WITHOUT saving to history
-  set({
-    nodes: newNodes,
-    edges: newEdges,
-    selectedNodeId: null,
-    contextMenuNodeId: null,
-    pendingConnection: null,
-  });
+    ```typescript
+    interface DiagramState {
+      // ... existing state
+      isReadOnly: boolean;
+      lockedBy: string | null; // Name of the user who has the lock
+    }
+    ```
 
-  // Now, reset the history with this as the initial state
-  const initialHistoryState = {
-    nodes: JSON.parse(JSON.stringify(newNodes)),
-    edges: JSON.parse(JSON.stringify(newEdges)),
-  };
-  set({ history: [initialHistoryState], historyIndex: 0 });
-  
-  // Sync with Yjs if needed
-},
-```
+**Task 2.2: Implement Lock Acquisition and Heartbeat**
+1.  Create a new React Hook, e.g., `useDiagramLocking(diagramId)`.
+2.  This hook will be used in the main diagram view component.
+3.  **On Mount (`useEffect`):**
+    *   Call the `POST /api/diagrams/{id}/lock` endpoint.
+    *   On success: `useDiagramStore.setState({ isReadOnly: false, lockedBy: null })`. Start a `setInterval` to call the lock endpoint again every 2 minutes (the heartbeat).
+    *   On failure (409 Conflict): `useDiagramStore.setState({ isReadOnly: true, lockedBy: 'User Name' })`.
+4.  **On Unmount (`useEffect` cleanup):**
+    *   Clear the `setInterval`.
+    *   Call the `POST /api/diagrams/{id}/unlock` endpoint to release the lock immediately. This is a UX improvement.
 
-### Why This New Architecture is Superior
+**Task 2.3: Implement Read-Only UI**
+1.  Plumb the `isReadOnly` state from the store into all relevant components.
+2.  **`ReactFlow` Component (`Canvas.tsx`):** Pass read-only props to the main component:
+    ```jsx
+    <ReactFlow
+      nodesDraggable={!isReadOnly}
+      nodesConnectable={!isReadOnly}
+      elementsSelectable={!isReadOnly}
+      // ... and others
+    />
+    ```
+3.  **`Toolbar.tsx`, `PropertyPanel.tsx`, `TableNode.tsx`, etc.:** Use the `isReadOnly` flag to disable all buttons, inputs, and interactions that modify the diagram.
+4.  **Display a Banner:** When `isReadOnly` is true, display a non-intrusive banner at the top of the canvas, e.g., `Viewing in read-only mode. [User Name] is currently editing.`
 
-1.  **Completeness:** It automatically captures *every single change* to the diagram's core state (`nodes`, `edges`). Moving a node, renaming a column—everything is now undoable.
-2.  **Reliability:** There's a single source of truth for saving history. You can't forget to call `saveToHistory` because it's built into the state update mechanism itself.
-3.  **Maintainability:** When you add a new feature that changes nodes or edges, you just use `setStateWithHistory`, and you get undo/redo for free. You don't have to remember to add a manual save call.
+**Task 2.4: Integrate Saving with the Lock**
+1.  The "Save" function in `Toolbar.tsx` will now call the `PUT /api/diagrams/[id]` endpoint.
+2.  The frontend should handle a `403 Forbidden` response gracefully, perhaps by showing an alert like: "Your editing session has expired. Please reload to get the latest version."
 
-By implementing this centralized, automatic history management, you will fix the unreliability and create a truly robust and professional-feeling undo/redo system that covers all user actions on the canvas.
+---
+
+### **Phase 3: Data Flow & Persistence (est. 2 hours)**
+
+This final phase connects the application state to the database.
+
+**Task 3.1: Loading and Initializing the Diagram**
+1.  When the diagram component mounts, it will first fetch the diagram data from `GET /api/diagrams/[id]`.
+2.  Use the response to populate the Zustand store via the `importDiagram` action. This will set the initial state for `nodes` and `edges`.
+
+**Task 3.2: User Authentication (Placeholder)**
+1.  For the initial 5-person scope, a full authentication system is not required.
+2.  **Low-Friction Solution:** On the client, prompt the user for their name and store it in `localStorage`. Pass this name/ID with every API request. This is simple and sufficient for identifying who has the lock.
+
+This plan provides a clear path to a robust, serverless, and collaborative application that perfectly meets your specified requirements. It prioritizes simplicity and a great developer experience while providing a solid foundation for future features.
