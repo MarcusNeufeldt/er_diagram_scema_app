@@ -1,4 +1,4 @@
-const AIService = require('./ai-service');
+const AIService = require('../../ai-service');
 require('dotenv').config();
 
 async function testAIService() {

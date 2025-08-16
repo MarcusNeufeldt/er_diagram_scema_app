@@ -1,4 +1,4 @@
-const AIService = require('./ai-service');
+const AIService = require('../../ai-service');
 
 async function testReasoningConfig() {
   console.log('🧠 Testing Reasoning Configuration\n');

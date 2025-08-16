@@ -1,4 +1,4 @@
-const AIService = require('./ai-service');
+const AIService = require('../../ai-service');
 const fs = require('fs').promises;
 const path = require('path');
 require('dotenv').config();

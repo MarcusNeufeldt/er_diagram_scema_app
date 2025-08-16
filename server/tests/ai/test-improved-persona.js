@@ -1,5 +1,5 @@
 require('dotenv').config();
-const AIService = require('./ai-service');
+const AIService = require('../../ai-service');
 
 async function testImprovedPersona() {
   console.log('🎭 Testing Improved AI Persona and Context Awareness\n');

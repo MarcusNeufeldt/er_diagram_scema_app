@@ -1,5 +1,5 @@
 require('dotenv').config();
-const AIService = require('./ai-service');
+const AIService = require('../../ai-service');
 
 async function testAnimationFeedback() {
   console.log('✨ Testing Animation Feedback During Schema Updates\n');

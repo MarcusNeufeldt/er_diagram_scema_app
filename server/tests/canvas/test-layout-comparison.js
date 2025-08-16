@@ -1,4 +1,4 @@
-const AIService = require('./ai-service');
+const AIService = require('../../ai-service');
 
 async function compareLayoutStrategies() {
   console.log('🔄 Auto-Layout Strategy Comparison\n');

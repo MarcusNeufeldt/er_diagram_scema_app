@@ -1,4 +1,4 @@
-const AIService = require('./ai-service');
+const AIService = require('../../ai-service');
 
 async function testAutoLayoutWithSchema() {
   console.log('🎯 Auto-Layout Algorithm Test\n');
