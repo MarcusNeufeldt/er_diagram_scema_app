@@ -23,13 +23,8 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
   const { 
     nodes, 
     edges, 
-    importDiagram, 
-    addFieldsToTable, 
-    removeFieldsFromTable, 
-    modifyFieldsInTable,
-    addRelationships,
-    removeRelationships,
-    deleteTable 
+    importDiagram,
+    flashTable
   } = useDiagramStore();
 
   const scrollToBottom = () => {
@@ -55,21 +50,54 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
       })),
     }));
 
-    const relationships = edges.map(edge => ({
-      sourceTable: edge.source || '',
-      sourceColumn: 'id', // Simplified - would need to parse from handle
-      targetTable: edge.target || '',
-      targetColumn: 'id', // Simplified - would need to parse from handle
-      type: edge.data?.cardinality || '1:N',
-      onDelete: edge.data?.onDelete || 'CASCADE',
-      onUpdate: edge.data?.onUpdate || 'CASCADE',
-      name: edge.data?.label,
-    }));
+    const relationships = edges.map(edge => {
+      // Parse actual column names from edge handles
+      let sourceColumn = 'id';
+      let targetColumn = 'id';
+      
+      if (edge.sourceHandle && edge.targetHandle) {
+        // Handle format: {tableId}-{columnId}-source/target
+        const sourceInfo = edge.sourceHandle.split('-');
+        const targetInfo = edge.targetHandle.split('-');
+        
+        if (sourceInfo.length >= 3 && targetInfo.length >= 3) {
+          const sourceColumnId = `${sourceInfo[2]}-${sourceInfo[3]}`;
+          const targetColumnId = `${targetInfo[2]}-${targetInfo[3]}`;
+          
+          // Find actual column names from nodes
+          const sourceNode = nodes.find(n => n.id === edge.source);
+          const targetNode = nodes.find(n => n.id === edge.target);
+          
+          if (sourceNode && targetNode) {
+            const sourceCol = sourceNode.data.columns.find((col: any) => col.id === sourceColumnId);
+            const targetCol = targetNode.data.columns.find((col: any) => col.id === targetColumnId);
+            
+            if (sourceCol) sourceColumn = sourceCol.name;
+            if (targetCol) targetColumn = targetCol.name;
+          }
+        }
+      }
+      
+      // Get table names from nodes instead of edge IDs
+      const sourceNode = nodes.find(n => n.id === edge.source);
+      const targetNode = nodes.find(n => n.id === edge.target);
+      
+      return {
+        sourceTable: sourceNode?.data.name || '',
+        sourceColumn: sourceColumn,
+        targetTable: targetNode?.data.name || '',
+        targetColumn: targetColumn,
+        type: edge.data?.cardinality || '1:N',
+        onDelete: edge.data?.onDelete || 'CASCADE',
+        onUpdate: edge.data?.onUpdate || 'CASCADE',
+        name: edge.data?.label,
+      };
+    });
 
     return { tables, relationships };
   };
 
-  // Smart diff and incremental update system
+  // Atomic schema update system - replaces setTimeout chains with single state update
   const applySchemaChanges = (newSchema: DatabaseSchema, isModification: boolean = false) => {
     console.log('🔄 applySchemaChanges called:', { 
       isModification, 
@@ -92,200 +120,96 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
       return;
     }
 
-    // Create table name mappings
-    const currentTables = new Map(currentSchema.tables.map((t: any) => [t.name, t]));
-    const newTables = new Map(newSchema.tables.map((t: any) => [t.name, t]));
-    const currentNodeMap = new Map(nodes.map((n: any) => [n.data.name, n]));
-
-    // Detect changes
-    const tablesToAdd: any[] = [];
-    const tablesToRemove: string[] = [];
-    const relationshipsToAdd: any[] = [];
-    const relationshipsToRemove: string[] = [];
-
-    // Find new tables
-    newSchema.tables.forEach((table: any) => {
-      if (!currentTables.has(table.name)) {
-        tablesToAdd.push(table);
-      }
-    });
-
-    // Find removed tables
-    currentSchema.tables.forEach((table: any) => {
-      if (!newTables.has(table.name)) {
-        tablesToRemove.push(table.name);
-      }
-    });
-
-    // Find modified tables
-    newSchema.tables.forEach((newTable: any) => {
-      const tableName = newTable.name;
-      const currentTable = currentTables.get(tableName);
-      if (currentTable && currentNodeMap.has(tableName)) {
-        const nodeId = currentNodeMap.get(tableName)!.id;
-        
-        // Compare columns
-        const currentColumns = new Map(currentTable.columns.map((c: any) => [c.name, c]));
-        const newColumns = new Map(newTable.columns.map((c: any) => [c.name, c]));
-        
-        const fieldsToAdd: any[] = [];
-        const fieldsToRemove: string[] = [];
-        const fieldsToModify: any[] = [];
-
-        // Find new fields
-        newTable.columns.forEach((col: any) => {
-          if (!currentColumns.has(col.name)) {
-            fieldsToAdd.push({
-              id: `col-${Date.now()}-${Math.random()}`,
-              name: col.name,
-              type: col.type,
-              isPrimaryKey: col.isPrimaryKey,
-              isNullable: col.isNullable,
-              defaultValue: col.defaultValue,
-              isForeignKey: false,
-              references: undefined,
-            });
-          }
-        });
-
-        // Find removed fields
-        currentTable.columns.forEach((col: any) => {
-          if (!newColumns.has(col.name)) {
-            const currentNode = currentNodeMap.get(tableName)!;
-            const columnInNode = currentNode.data.columns.find((c: any) => c.name === col.name);
-            if (columnInNode) {
-              fieldsToRemove.push(columnInNode.id);
-            }
-          }
-        });
-
-        // Find modified fields
-        newTable.columns.forEach((newCol: any) => {
-          const colName = newCol.name;
-          const currentCol: any = currentColumns.get(colName);
-          if (currentCol && (
-            currentCol.type !== newCol.type ||
-            currentCol.isPrimaryKey !== newCol.isPrimaryKey ||
-            currentCol.isNullable !== newCol.isNullable ||
-            currentCol.defaultValue !== newCol.defaultValue
-          )) {
-            const currentNode = currentNodeMap.get(tableName)!;
-            const columnInNode = currentNode.data.columns.find((c: any) => c.name === colName);
-            if (columnInNode) {
-              fieldsToModify.push({
-                id: columnInNode.id,
-                updates: {
-                  type: newCol.type,
-                  isPrimaryKey: newCol.isPrimaryKey,
-                  isNullable: newCol.isNullable,
-                  defaultValue: newCol.defaultValue,
-                }
-              });
-            }
-          }
-        });
-
-        // Apply incremental changes
-        if (fieldsToAdd.length > 0) {
-          setTimeout(() => addFieldsToTable(nodeId, fieldsToAdd), 100);
-        }
-        if (fieldsToRemove.length > 0) {
-          setTimeout(() => removeFieldsFromTable(nodeId, fieldsToRemove), 200);
-        }
-        if (fieldsToModify.length > 0) {
-          setTimeout(() => modifyFieldsInTable(nodeId, fieldsToModify), 300);
-        }
-      }
-    });
-
-    // Detect relationship changes
-    const currentRelationships = new Map(
-      currentSchema.relationships.map((rel: any) => 
-        [`${rel.sourceTable}-${rel.sourceColumn}-${rel.targetTable}-${rel.targetColumn}`, rel]
-      )
-    );
-
-    // Find new relationships
-    newSchema.relationships.forEach((rel: any) => {
-      const relationshipKey = `${rel.sourceTable}-${rel.sourceColumn}-${rel.targetTable}-${rel.targetColumn}`;
-      if (!currentRelationships.has(relationshipKey)) {
-        relationshipsToAdd.push(rel);
-      }
-    });
-
-    // Find removed relationships
-    currentSchema.relationships.forEach((rel: any) => {
-      const relationshipKey = `${rel.sourceTable}-${rel.sourceColumn}-${rel.targetTable}-${rel.targetColumn}`;
-      const newHasRelationship = newSchema.relationships.some((newRel: any) => 
-        `${newRel.sourceTable}-${newRel.sourceColumn}-${newRel.targetTable}-${newRel.targetColumn}` === relationshipKey
-      );
-      if (!newHasRelationship) {
-        // Find the actual edge ID to remove
-        const edgeToRemove = edges.find(edge => {
-          if (!edge.source || !edge.target || !edge.sourceHandle || !edge.targetHandle) return false;
-          
-          // Parse source and target table names from nodes
-          const sourceNode = nodes.find(n => n.id === edge.source);
-          const targetNode = nodes.find(n => n.id === edge.target);
-          
-          if (!sourceNode || !targetNode) return false;
-          
-          // Parse column info from handles
-          const sourceInfo = edge.sourceHandle.split('-');
-          const targetInfo = edge.targetHandle.split('-');
-          const sourceColumnId = `${sourceInfo[2]}-${sourceInfo[3]}`;
-          const targetColumnId = `${targetInfo[2]}-${targetInfo[3]}`;
-          
-          const sourceColumn = sourceNode.data.columns.find((col: any) => col.id === sourceColumnId);
-          const targetColumn = targetNode.data.columns.find((col: any) => col.id === targetColumnId);
-          
-          return sourceNode.data.name === rel.sourceTable &&
-                 targetNode.data.name === rel.targetTable &&
-                 sourceColumn?.name === rel.sourceColumn &&
-                 targetColumn?.name === rel.targetColumn;
-        });
-        
-        if (edgeToRemove) {
-          relationshipsToRemove.push(edgeToRemove.id);
-        }
-      }
-    });
-
-    // Apply relationship changes with delay for visual effect
-    if (relationshipsToRemove.length > 0) {
-      setTimeout(() => {
-        removeRelationships(relationshipsToRemove);
-      }, 100); // Remove first
-    }
+    console.log('🔄 Performing atomic incremental update');
+    console.log('Current schema relationships:', currentSchema.relationships.length);
+    console.log('New schema relationships:', newSchema.relationships.length);
     
-    if (relationshipsToAdd.length > 0) {
-      console.log('🔗 Scheduling relationship additions:', relationshipsToAdd);
-      setTimeout(() => {
-        console.log('🔗 Executing addRelationships');
-        addRelationships(relationshipsToAdd);
-      }, 400); // Add before table additions (which happen at 500ms)
-    } else {
-      console.log('❌ No relationships to add');
-    }
+    // Compute final state atomically
+    const finalState = computeFinalSchemaState(currentSchema, newSchema);
+    
+    console.log('Final state:', {
+      nodes: finalState.nodes.length,
+      edges: finalState.edges.length,
+      affectedTables: finalState.affectedTableIds.length
+    });
+    
+    // Apply all changes in a single atomic update
+    importDiagram({ nodes: finalState.nodes, edges: finalState.edges });
+    
+    // Trigger visual feedback for all affected tables
+    finalState.affectedTableIds.forEach(id => {
+      // Use the existing flashTable function from the store
+      flashTable(id);
+    });
+  };
 
-    // Handle table additions with delay for visual effect
-    tablesToAdd.forEach((table, index) => {
-      setTimeout(() => {
-        const timestamp = Date.now() + index;
-        const tableId = `table-${timestamp}`;
-        const position = { 
-          x: 100 + (nodes.length % 3) * 300, 
-          y: 100 + Math.floor(nodes.length / 3) * 200 
+  // Helper function to compute final state atomically
+  const computeFinalSchemaState = (currentSchema: DatabaseSchema, newSchema: DatabaseSchema) => {
+    const currentTables = new Map(currentSchema.tables.map((t: any) => [t.name, t]));
+    const currentNodeMap = new Map(nodes.map((n: any) => [n.data.name, n]));
+    
+    const affectedTableIds: string[] = [];
+    const finalNodes: any[] = [];
+    const tableNameToId = new Map<string, string>();
+    
+    // Process all tables: existing, modified, and new
+    newSchema.tables.forEach((newTable: any) => {
+      const currentTable = currentTables.get(newTable.name);
+      const existingNode = currentNodeMap.get(newTable.name);
+      
+      if (existingNode && currentTable) {
+        // Table exists - modify it while preserving existing column IDs
+        const modifiedNode = { ...existingNode };
+        const existingColumns = new Map(existingNode.data.columns.map((col: any) => [col.name, col]));
+        
+        modifiedNode.data = {
+          ...modifiedNode.data,
+          columns: newTable.columns.map((col: any, colIndex: number) => {
+            const existingCol = existingColumns.get(col.name);
+            if (existingCol) {
+              // Preserve existing column ID and references
+              return {
+                ...existingCol,
+                type: col.type,
+                isPrimaryKey: col.isPrimaryKey,
+                isNullable: col.isNullable,
+                defaultValue: col.defaultValue,
+                // Keep existing isForeignKey and references
+              };
+            } else {
+              // New column
+              return {
+                id: `col-${Date.now()}-${Math.random()}`,
+                name: col.name,
+                type: col.type,
+                isPrimaryKey: col.isPrimaryKey,
+                isNullable: col.isNullable,
+                defaultValue: col.defaultValue,
+                isForeignKey: false,
+                references: undefined,
+              };
+            }
+          }),
         };
         
+        finalNodes.push(modifiedNode);
+        tableNameToId.set(newTable.name, modifiedNode.id);
+        affectedTableIds.push(modifiedNode.id);
+      } else {
+        // New table - create it
+        const timestamp = Date.now();
+        const tableId = `table-${timestamp}-${finalNodes.length}`;
         const newNode = {
           id: tableId,
           type: 'table',
-          position,
+          position: { 
+            x: 100 + (finalNodes.length % 3) * 300, 
+            y: 100 + Math.floor(finalNodes.length / 3) * 200 
+          },
           data: {
             id: tableId,
-            name: table.name,
-            columns: table.columns.map((col: any, colIndex: number) => ({
+            name: newTable.name,
+            columns: newTable.columns.map((col: any, colIndex: number) => ({
               id: `col-${timestamp}-${colIndex}`,
               name: col.name,
               type: col.type,
@@ -295,28 +219,145 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
               isForeignKey: false,
               references: undefined,
             })),
-            indexes: table.indexes || [],
+            indexes: newTable.indexes || [],
             foreignKeys: [],
           },
         };
-
-        // Use the existing addTable method but with custom data
-        importDiagram({ nodes: [...nodes, newNode], edges });
-      }, (index + 1) * 500);
+        
+        finalNodes.push(newNode);
+        tableNameToId.set(newTable.name, tableId);
+        affectedTableIds.push(tableId);
+      }
     });
-
-    // Handle table removals
-    tablesToRemove.forEach((tableName, index) => {
-      setTimeout(() => {
-        const nodeToRemove = currentNodeMap.get(tableName);
-        if (nodeToRemove) {
-          deleteTable(nodeToRemove.id);
-        }
-      }, (index + 1) * 300);
+    
+    // Create edges - preserve existing ones and add new ones
+    const currentRelationshipKeys = new Set(
+      currentSchema.relationships.map((rel: any) => 
+        `${rel.sourceTable}.${rel.sourceColumn}->${rel.targetTable}.${rel.targetColumn}`
+      )
+    );
+    
+    const newRelationshipKeys = new Set(
+      newSchema.relationships.map((rel: any) => 
+        `${rel.sourceTable}.${rel.sourceColumn}->${rel.targetTable}.${rel.targetColumn}`
+      )
+    );
+    
+    // Start with existing edges for preserved relationships
+    const finalEdges: any[] = [];
+    
+    // Filter existing edges - keep only those that should be preserved
+    edges.forEach(edge => {
+      if (!edge.sourceHandle || !edge.targetHandle) {
+        console.warn('Edge missing handles:', edge.id);
+        return;
+      }
+      
+      // Parse edge to get relationship key
+      const sourceNode = nodes.find(n => n.id === edge.source);
+      const targetNode = nodes.find(n => n.id === edge.target);
+      
+      if (!sourceNode || !targetNode) {
+        console.warn('Edge references missing nodes:', edge.id);
+        return;
+      }
+      
+      // Check if both tables still exist in new schema
+      const sourceTableExists = newSchema.tables.some(t => t.name === sourceNode.data.name);
+      const targetTableExists = newSchema.tables.some(t => t.name === targetNode.data.name);
+      
+      if (!sourceTableExists || !targetTableExists) {
+        console.log(`Removing edge ${edge.id} - table deleted`);
+        return;
+      }
+      
+      const sourceInfo = edge.sourceHandle.split('-');
+      const targetInfo = edge.targetHandle.split('-');
+      
+      if (sourceInfo.length < 4 || targetInfo.length < 4) {
+        console.warn('Edge handle format invalid:', edge.id);
+        return;
+      }
+      
+      const sourceColumnId = `${sourceInfo[2]}-${sourceInfo[3]}`;
+      const targetColumnId = `${targetInfo[2]}-${targetInfo[3]}`;
+      
+      const sourceCol = sourceNode.data.columns.find((col: any) => col.id === sourceColumnId);
+      const targetCol = targetNode.data.columns.find((col: any) => col.id === targetColumnId);
+      
+      if (!sourceCol || !targetCol) {
+        console.warn('Edge references missing columns:', edge.id);
+        return;
+      }
+      
+      const relationshipKey = `${sourceNode.data.name}.${sourceCol.name}->${targetNode.data.name}.${targetCol.name}`;
+      
+      if (newRelationshipKeys.has(relationshipKey)) {
+        console.log(`Preserving edge: ${relationshipKey}`);
+        finalEdges.push(edge);
+      } else {
+        console.log(`Removing edge: ${relationshipKey} (not in new schema)`);
+      }
     });
+    
+    // Add new relationships
+    newSchema.relationships.forEach((rel: any, index: number) => {
+      const relationshipKey = `${rel.sourceTable}.${rel.sourceColumn}->${rel.targetTable}.${rel.targetColumn}`;
+      
+      // Skip if this relationship already exists
+      if (currentRelationshipKeys.has(relationshipKey)) {
+        return;
+      }
+      
+      const sourceTableId = tableNameToId.get(rel.sourceTable);
+      const targetTableId = tableNameToId.get(rel.targetTable);
+      
+      if (!sourceTableId || !targetTableId) {
+        console.warn(`Could not find table IDs for relationship: ${rel.sourceTable} -> ${rel.targetTable}`);
+        return;
+      }
+
+      // Find source and target columns
+      const sourceTable = finalNodes.find(n => n.id === sourceTableId);
+      const targetTable = finalNodes.find(n => n.id === targetTableId);
+      
+      const sourceColumn = sourceTable?.data.columns.find((col: any) => col.name === rel.sourceColumn);
+      const targetColumn = targetTable?.data.columns.find((col: any) => col.name === rel.targetColumn);
+      
+      if (!sourceColumn || !targetColumn) {
+        console.warn(`Could not find columns for relationship: ${rel.sourceColumn} -> ${rel.targetColumn}`);
+        return;
+      }
+
+      // Mark target column as foreign key
+      targetColumn.isForeignKey = true;
+      targetColumn.references = {
+        table: sourceTableId,
+        column: sourceColumn.id,
+      };
+
+      const newEdge = {
+        id: `edge-${Date.now()}-${index}`,
+        type: 'foreign-key',
+        source: sourceTableId,
+        target: targetTableId,
+        sourceHandle: `${sourceTableId}-${sourceColumn.id}-source`,
+        targetHandle: `${targetTableId}-${targetColumn.id}-target`,
+        data: {
+          cardinality: rel.type,
+          label: rel.name || `fk_${rel.targetTable}_${rel.targetColumn}`,
+          onDelete: rel.onDelete || 'CASCADE',
+          onUpdate: rel.onUpdate || 'CASCADE',
+        },
+      };
+      
+      finalEdges.push(newEdge);
+    });
+    
+    return { nodes: finalNodes, edges: finalEdges, affectedTableIds };
   };
 
-  // Convert DatabaseSchema to diagram format (fallback for full replacement)
+  // Convert DatabaseSchema to diagram format (atomic full replacement)
   const applySchemaToCanvas = (schema: DatabaseSchema) => {
     console.log('📋 applySchemaToCanvas called with schema:', schema);
     console.log('📋 Schema has relationships:', schema.relationships);
@@ -418,25 +459,12 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
       return edgeResult;
     }).filter((edge): edge is NonNullable<typeof edge> => edge !== null);
 
-    // Apply nodes first, then edges after a delay to ensure handles are rendered
+    // Apply both nodes and edges atomically in a single update
     console.log('📋 Final newEdges being applied:', newEdges);
     console.log('📋 Edge count:', newEdges.length);
+    console.log('📋 Applying atomic update with nodes and edges together');
     
-    // Apply nodes first
-    importDiagram({ nodes: newNodes, edges: [] });
-    
-    // Apply edges after a short delay to ensure Handle components are rendered
-    if (newEdges && newEdges.length > 0) {
-      console.log('📋 Scheduling edge application...');
-      setTimeout(() => {
-        console.log('📋 Applying edges after delay:', newEdges);
-        const currentState = useDiagramStore.getState();
-        console.log('📋 Current nodes:', currentState.nodes.length);
-        importDiagram({ nodes: currentState.nodes, edges: newEdges });
-      }, 500); // Increased delay to 500ms
-    } else {
-      console.log('📋 No edges to apply');
-    }
+    importDiagram({ nodes: newNodes, edges: newEdges });
   };
 
   const handleSendMessage = async () => {
