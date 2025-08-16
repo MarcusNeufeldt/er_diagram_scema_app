@@ -1,72 +1,178 @@
-You are absolutely right to be unsatisfied with that chat experience. You've perfectly captured one of the most difficult and crucial challenges in building AI applications: **maintaining context and a consistent persona.**
+Of course. I've done a deep dive into your implementation of the undo/redo feature.
 
-The chat log you provided is a brilliant case study. Let's break down exactly what's going wrong and how to fix it.
+First, let me commend you on your approach. Creating detailed markdown summaries like `UNDO_REDO_IMPLEMENTATION.md` and `UNDO_REDO_BUG_FIX.md` is an outstanding practice. It shows you're not just coding, but thinking deeply about the architecture and user experience.
 
-### Diagnosis of the Problem
+You have correctly identified that this feature is critical and that its current state is unreliable. Your bug fix summary (`UNDO_REDO_BUG_FIX.md`) correctly identified and fixed a major logic flaw in how the history was saved. **That was an excellent catch.**
 
-Your AI is suffering from **"Persona Drift"** and **"Context Collapse."**
+However, after reviewing the current implementation in `diagramStore.ts`, I see a more fundamental architectural issue that is causing the unreliability. The good news is that it's very fixable.
 
-1.  **Initial Persona (Correct):** It starts as a "helpful database design assistant" within your app. It correctly identifies when to use its tools.
-2.  **The "Vague Request" Trap:** When you say "add some more fields," the AI correctly calls the `modify_existing_schema` tool. However, the `description` it passes is probably just "add some more fields," which isn't enough information. The backend AI successfully modifies the schema by adding... nothing. But the tool call *succeeded*, so the AI confidently (and wrongly) reports "✅ I've modified your schema."
-3.  **Short-Term Memory:** When you ask "which fields," the conversation history is sent back, and the AI realizes its previous response was nonsense. It correctly backpedals and asks for clarification. So far, this is recoverable.
-4.  **The Collapse:** The critical failure happens when you say "**all connections got lost...**"
-    *   **Your Context:** You mean the visual `edges` on the ReactFlow canvas disappeared.
-    *   **The AI's Context:** The AI's `systemPrompt` defines it as a generic "database design assistant." It has **no knowledge that it lives inside a visual diagramming tool.** It interprets "connections" in the only way it knows: as database network connections (`localhost:5432`).
-    *   **The Result:** The AI's persona completely drifts. It becomes a generic IT support bot, lecturing you about firewalls and database servers. It has lost all awareness of its true environment.
+### The Core Problem: Manual History Management is Incomplete
 
-### The Root Cause: A Too-Generic System Prompt
+Your current approach is to manually call `saveToHistory()` after specific, major operations like `addTable`, `deleteTable`, and `confirmConnection`.
 
-The problem lies directly in your `server/ai-service.js` file. Your `systemPrompt` is good, but it's not specific enough to your application's unique context.
+**The Issue:** This approach misses a huge number of common user actions. **Any state change that doesn't explicitly call `saveToHistory` will not be recorded, leading to a broken and confusing undo stack.**
 
-Here is your current prompt's core:
-```javascript
-const systemPrompt = `You are a helpful database design assistant. You can help users understand, modify, and improve their database schemas.
-Current schema: ${currentSchema ? JSON.stringify(currentSchema, null, 2): 'No schema loaded'}
-...`
+Here are the critical user actions that are **currently NOT being saved** to the undo history:
+
+*   **Moving a table** (Node position change)
+*   **Renaming a table** (`updateTable`)
+*   **Adding a column** (`addColumn`)
+*   **Updating a column** (changing name, type, PK, nullable status via `updateColumn`)
+*   **Removing a column** (`removeColumn`)
+*   **Auto-layout** (`autoLayout`)
+*   **Editing a relationship** (via `confirmConnection` in `isEditing` mode)
+
+This explains why it feels so unreliable. A user might move three tables, rename one, and then add a column. When they press Ctrl+Z, they expect the column addition to be reverted. Instead, the last *major* action (like adding a whole table) is reverted, wiping out all their recent small changes. This is a frustrating user experience.
+
+---
+
+### The Solution: An Automatic, Middleware-Inspired Approach
+
+Instead of manually sprinkling `saveToHistory()` calls everywhere, we need a system that **automatically captures any state change** to `nodes` or `edges` and saves it to the history.
+
+This is exactly what Zustand middleware does, but we can build a lightweight version of it directly into your store. The key is to centralize state updates through a single, history-aware setter function.
+
+#### Step 1: Create a `setStateWithHistory` function in your store
+
+This function will become the **only** way you should modify `nodes` and `edges`. It will automatically handle the history logic.
+
+```typescript
+// Inside your create<DiagramState>((set, get) => ({ ... })) in diagramStore.ts
+
+// 1. Define the new history-aware setter
+const setStateWithHistory = (newState: Partial<DiagramState>, actionName: string) => {
+  const { history, historyIndex, maxHistorySize } = get();
+  
+  // Apply the new state
+  set(newState);
+
+  // Get the *full* state after the update
+  const { nodes, edges } = get();
+
+  const currentState: HistoryState = { 
+    nodes: JSON.parse(JSON.stringify(nodes)), 
+    edges: JSON.parse(JSON.stringify(edges)) 
+  };
+
+  // Truncate history if we've undone actions
+  const newHistory = history.slice(0, historyIndex + 1);
+  newHistory.push(currentState);
+  
+  if (newHistory.length > maxHistorySize) {
+    newHistory.shift();
+  }
+  
+  console.log(`History saved for: ${actionName} (total states: ${newHistory.length})`);
+  
+  set({ 
+    history: newHistory, 
+    historyIndex: newHistory.length - 1 
+  });
+};
+
+// ... then inside the returned store object ...
 ```
-It's missing the crucial details about the visual canvas, nodes, and edges.
 
-### The Solution: The "Golden" System Prompt
+#### Step 2: Refactor ALL State-Changing Actions to Use `setStateWithHistory`
 
-You need to anchor the AI firmly in its environment. By giving it a more detailed and specific "persona" and set of instructions, you can prevent this drift.
+Now, go through every function in `diagramStore.ts` that modifies `nodes` or `edges` and refactor it to use this new function. **Remove all manual calls to `saveToHistory`**.
 
-**Replace your `systemPrompt` in `chatAboutSchema` with this much more robust version:**
+Here are some examples:
 
-```javascript
-// In server/ai-service.js
-async chatAboutSchema(userMessage, currentSchema = null, conversationHistory = []) {
-  try {
-    const systemPrompt = `You are an expert AI assistant embedded within a **visual, web-based database diagramming tool**. Your name is "Data Modeler AI".
+```typescript
+// --- Refactored Actions in diagramStore.ts ---
 
-Your primary role is to help users design and modify database schemas by interacting with a visual canvas.
+// This one was a major source of bugs. applyNodeChanges should be undoable.
+onNodesChange: (changes) => {
+  const newNodes = applyNodeChanges(changes, get().nodes);
+  setStateWithHistory({ nodes: newNodes }, 'Node Change (move/select)');
+  
+  // Your Yjs sync logic can remain
+  const { yNodes } = get();
+  if (yNodes && changes.some(c => c.type === 'position' && !c.dragging)) {
+    yNodes.delete(0, yNodes.length);
+    yNodes.push(newNodes);
+  }
+},
 
-**Key Concepts of Your Environment:**
-- The user is looking at an interactive **canvas**.
-- The tables are represented as **nodes** on the canvas.
-- The relationships (foreign keys) are represented as **edges** or **connections** between the nodes.
-- When you modify the schema, the canvas updates visually.
+addTable: (position) => {
+  const newTable: TableData = { /* ... */ };
+  const newNode: Node = { /* ... */ };
+  const currentNodes = get().nodes;
+  setStateWithHistory({ 
+    nodes: [...currentNodes, newNode],
+    selectedNodeId: newNode.id 
+  }, 'Add Table');
+},
 
-**CRITICAL INSTRUCTIONS:**
-1.  **Interpret "Connections":** When a user mentions "connections," "lines," or "links," they are ALWAYS referring to the **visual edges on the canvas**. They are NEVER talking about network or database server connections. If they say "connections are lost," it means the visual edges disappeared after your last modification. Acknowledge this and help them fix the schema to restore the relationships. **Do not lecture them about network connectivity or database servers.**
-2.  **Handle Vague Requests:** If a user's request is too vague to be actionable (e.g., "add some fields" or "make it better"), **first ask for clarification or propose specific, sensible changes and ask for confirmation** before calling a tool. For example, suggest 3-4 useful columns for a table and ask "Would you like me to add these?"
-3.  **Be Specific:** When you use a tool to modify the schema, your confirmation message should be specific about what you did (e.g., "✅ I've added the 'slug' and 'excerpt' fields to the 'posts' table.").
+deleteTable: (nodeId) => {
+  const currentNodes = get().nodes;
+  const currentEdges = get().edges;
+  const newNodes = currentNodes.filter((node) => node.id !== nodeId);
+  const newEdges = currentEdges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId);
+  
+  setStateWithHistory({ 
+    nodes: newNodes, 
+    edges: newEdges,
+    selectedNodeId: get().selectedNodeId === nodeId ? null : get().selectedNodeId
+  }, 'Delete Table');
+},
 
-You have access to these tools:
-1. generate_database_schema - Create a new database schema from scratch.
-2. modify_existing_schema - Modify the current database schema.
-3. analyze_current_schema - Analyze the current schema and provide insights.
+updateColumn: (nodeId, columnId, updates) => {
+  const newNodes = get().nodes.map((node) =>
+    node.id === nodeId
+      ? {
+          ...node,
+          data: {
+            ...node.data,
+            columns: node.data.columns.map((col: Column) =>
+              col.id === columnId ? { ...col, ...updates } : col
+            ),
+          },
+        }
+      : node
+  );
+  setStateWithHistory({ nodes: newNodes }, 'Update Column');
+},
 
-Current schema on the canvas:
-${currentSchema ? JSON.stringify(currentSchema, null, 2) : 'No schema is on the canvas yet.'}`;
-
-    // ... the rest of your function remains the same
+// You need to apply this pattern to ALL other modifying functions:
+// onEdgesChange, onConnect, confirmConnection, updateTable, addColumn, removeColumn, autoLayout, etc.
 ```
 
-### Why This New Prompt Works
+#### Step 3: Fix `importDiagram`
 
-1.  **Anchors the Persona:** It explicitly tells the AI it lives in a *visual diagramming tool*.
-2.  **Defines Terminology:** It defines "canvas," "nodes," and most importantly, "**connections = visual edges**." This directly prevents the catastrophic misinterpretation.
-3.  **Provides a Critical Instruction:** It gives the AI a direct, negative constraint ("Do not lecture them about network connectivity..."), which is a very effective way to guide LLM behavior.
-4.  **Solves the Vague Request Problem:** It codifies the good behavior the AI stumbled upon ("propose specific, sensible changes and ask for confirmation") into a core instruction. This makes the AI more proactive and less likely to "hallucinate" completing a task.
+When a user imports a new diagram, the undo history should be completely reset. Your current implementation is close, but needs a slight adjustment.
 
-By making this change, your AI will feel much more integrated, intelligent, and aware of its surroundings, leading to a far more satisfying user experience.
+```typescript
+// --- Refactored importDiagram ---
+importDiagram: (diagramData) => {
+  const newNodes = diagramData.nodes || [];
+  const newEdges = diagramData.edges || [];
+  
+  // Set the state directly, WITHOUT saving to history
+  set({
+    nodes: newNodes,
+    edges: newEdges,
+    selectedNodeId: null,
+    contextMenuNodeId: null,
+    pendingConnection: null,
+  });
+
+  // Now, reset the history with this as the initial state
+  const initialHistoryState = {
+    nodes: JSON.parse(JSON.stringify(newNodes)),
+    edges: JSON.parse(JSON.stringify(newEdges)),
+  };
+  set({ history: [initialHistoryState], historyIndex: 0 });
+  
+  // Sync with Yjs if needed
+},
+```
+
+### Why This New Architecture is Superior
+
+1.  **Completeness:** It automatically captures *every single change* to the diagram's core state (`nodes`, `edges`). Moving a node, renaming a column—everything is now undoable.
+2.  **Reliability:** There's a single source of truth for saving history. You can't forget to call `saveToHistory` because it's built into the state update mechanism itself.
+3.  **Maintainability:** When you add a new feature that changes nodes or edges, you just use `setStateWithHistory`, and you get undo/redo for free. You don't have to remember to add a manual save call.
+
+By implementing this centralized, automatic history management, you will fix the unreliability and create a truly robust and professional-feeling undo/redo system that covers all user actions on the canvas.

@@ -74,31 +74,47 @@ interface DiagramState extends UIState {
   autoLayout: () => void;
 }
 
-// Helper function to save current state to history after an operation
-const saveToHistory = (get: any, set: any) => {
-  const state = get();
-  const currentState: HistoryState = {
-    nodes: JSON.parse(JSON.stringify(state.nodes)),
-    edges: JSON.parse(JSON.stringify(state.edges))
+// Centralized history-aware state setter - the ONLY way to modify nodes/edges
+const createSetStateWithHistory = (get: any, set: any) => {
+  return (newState: Partial<DiagramState>, actionName: string) => {
+    const { history, historyIndex, maxHistorySize } = get();
+    
+    // Apply the new state first
+    set(newState);
+
+    // Get the *full* state after the update
+    const { nodes, edges } = get();
+
+    const currentState: HistoryState = { 
+      nodes: JSON.parse(JSON.stringify(nodes)), 
+      edges: JSON.parse(JSON.stringify(edges)) 
+    };
+
+    // Truncate history if we've undone actions
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(currentState);
+    
+    // Limit history size
+    if (newHistory.length > maxHistorySize) {
+      newHistory.shift();
+    } else {
+      // Move to the new state
+      set({ historyIndex: historyIndex + 1 });
+    }
+    
+    console.log(`History saved for: ${actionName} (total states: ${newHistory.length})`);
+    
+    set({ 
+      history: newHistory
+    });
   };
-  
-  // Remove any future states if we're not at the end
-  const newHistory = state.history.slice(0, state.historyIndex + 1);
-  newHistory.push(currentState);
-  
-  // Limit history size and update index
-  if (newHistory.length > state.maxHistorySize) {
-    newHistory.shift();
-    // Index stays the same when we remove from the beginning
-  } else {
-    // Move to the new state
-    set({ historyIndex: state.historyIndex + 1 });
-  }
-  
-  set({ history: newHistory });
 };
 
-export const useDiagramStore = create<DiagramState>((set, get) => ({
+export const useDiagramStore = create<DiagramState>((set, get) => {
+  // Create the centralized history-aware setter
+  const setStateWithHistory = createSetStateWithHistory(get, set);
+  
+  return {
   // Main diagram state
   nodes: [],
   edges: [],
@@ -158,20 +174,36 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
 
   onNodesChange: (changes) => {
     const newNodes = applyNodeChanges(changes, get().nodes);
-    set({ nodes: newNodes });
+    
+    // Only save to history for position changes when dragging ends
+    const hasPositionChange = changes.some(c => c.type === 'position' && !c.dragging);
+    
+    if (hasPositionChange) {
+      setStateWithHistory({ nodes: newNodes }, 'Move Table');
+    } else {
+      // For selection changes and during dragging, don't save to history
+      set({ nodes: newNodes });
+    }
     
     // Sync position changes to Yjs
     const { yNodes } = get();
-    if (yNodes && changes.some(c => c.type === 'position' && !c.dragging)) {
+    if (yNodes && hasPositionChange) {
       yNodes.delete(0, yNodes.length);
       yNodes.push(newNodes);
     }
   },
 
   onEdgesChange: (changes) => {
-    set({
-      edges: applyEdgeChanges(changes, get().edges),
-    });
+    const newEdges = applyEdgeChanges(changes, get().edges);
+    
+    // Only save to history for edge removal, not selection changes
+    const hasRemoval = changes.some(c => c.type === 'remove');
+    
+    if (hasRemoval) {
+      setStateWithHistory({ edges: newEdges }, 'Remove Connection');
+    } else {
+      set({ edges: newEdges });
+    }
   },
 
   onConnect: (connection) => {
@@ -290,7 +322,12 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       return node;
     });
 
-    set({ edges: newEdges, nodes, pendingConnection: null, editingEdgeId: null });
+    setStateWithHistory({ 
+      edges: newEdges, 
+      nodes, 
+      pendingConnection: null, 
+      editingEdgeId: null 
+    }, editingEdgeId ? 'Edit Connection' : 'Add Connection');
     
     // Sync to Yjs if available
     const { yNodes, yEdges } = get();
@@ -300,9 +337,6 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       yEdges.delete(0, yEdges.length);
       yEdges.push(newEdges);
     }
-    
-    // Save state to history after adding connection
-    saveToHistory(get, set);
   },
 
   cancelConnection: () => {
@@ -383,32 +417,32 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       yNodes.push([newNode]);
     } else {
       // Fallback to local state if not connected
-      set({
+      setStateWithHistory({
         nodes: [...get().nodes, newNode],
-      });
+        selectedNodeId: newTable.id
+      }, 'Add Table');
     }
     
-    set({ selectedNodeId: newTable.id });
-    
-    // Save state to history after adding table
-    saveToHistory(get, set);
+    if (!yNodes) {
+      // Only set selectedNodeId if we didn't already do it above
+      set({ selectedNodeId: newTable.id });
+    }
   },
 
   updateTable: (nodeId, updates) => {
-    // Always update local state to preserve positions
-    set({
-      nodes: get().nodes.map((node) =>
-        node.id === nodeId
-          ? { ...node, data: { ...node.data, ...updates } }
-          : node
-      ),
-    });
+    const newNodes = get().nodes.map((node) =>
+      node.id === nodeId
+        ? { ...node, data: { ...node.data, ...updates } }
+        : node
+    );
+    
+    setStateWithHistory({ nodes: newNodes }, 'Update Table');
     
     // Sync to Yjs if available
-    const { yNodes, nodes } = get();
+    const { yNodes } = get();
     if (yNodes) {
       yNodes.delete(0, yNodes.length);
-      yNodes.push(nodes);
+      yNodes.push(newNodes);
     }
   },
 
@@ -419,15 +453,13 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       edge.source !== nodeId && edge.target !== nodeId
     );
     
-    set({
+    const selectedNodeId = get().selectedNodeId === nodeId ? null : get().selectedNodeId;
+    
+    setStateWithHistory({
       nodes: newNodes,
       edges: newEdges,
-    });
-    
-    // Clear selection if deleted node was selected
-    if (get().selectedNodeId === nodeId) {
-      set({ selectedNodeId: null });
-    }
+      selectedNodeId
+    }, 'Delete Table');
     
     // Sync to Yjs if available
     const { yNodes, yEdges } = get();
@@ -437,9 +469,6 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       yEdges.delete(0, yEdges.length);
       yEdges.push(newEdges);
     }
-    
-    // Save state to history after deleting table
-    saveToHistory(get, set);
   },
 
   selectNode: (nodeId) => {
@@ -451,76 +480,73 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   },
 
   addColumn: (nodeId, column) => {
-    // Always update local state to preserve positions
-    set({
-      nodes: get().nodes.map((node) =>
-        node.id === nodeId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                columns: [...node.data.columns, column],
-              },
-            }
-          : node
-      ),
-    });
+    const newNodes = get().nodes.map((node) =>
+      node.id === nodeId
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              columns: [...node.data.columns, column],
+            },
+          }
+        : node
+    );
+    
+    setStateWithHistory({ nodes: newNodes }, 'Add Column');
     
     // Sync to Yjs if available
-    const { yNodes, nodes } = get();
+    const { yNodes } = get();
     if (yNodes) {
       yNodes.delete(0, yNodes.length);
-      yNodes.push(nodes);
+      yNodes.push(newNodes);
     }
   },
 
   updateColumn: (nodeId, columnId, updates) => {
-    // Always update local state to preserve positions
-    set({
-      nodes: get().nodes.map((node) =>
-        node.id === nodeId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                columns: node.data.columns.map((col: Column) =>
-                  col.id === columnId ? { ...col, ...updates } : col
-                ),
-              },
-            }
-          : node
-      ),
-    });
+    const newNodes = get().nodes.map((node) =>
+      node.id === nodeId
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              columns: node.data.columns.map((col: Column) =>
+                col.id === columnId ? { ...col, ...updates } : col
+              ),
+            },
+          }
+        : node
+    );
+    
+    setStateWithHistory({ nodes: newNodes }, 'Update Column');
     
     // Sync to Yjs if available
-    const { yNodes, nodes } = get();
+    const { yNodes } = get();
     if (yNodes) {
       yNodes.delete(0, yNodes.length);
-      yNodes.push(nodes);
+      yNodes.push(newNodes);
     }
   },
 
   removeColumn: (nodeId, columnId) => {
-    // Always update local state to preserve positions
-    set({
-      nodes: get().nodes.map((node) =>
-        node.id === nodeId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                columns: node.data.columns.filter((col: Column) => col.id !== columnId),
-              },
-            }
-          : node
-      ),
-    });
+    const newNodes = get().nodes.map((node) =>
+      node.id === nodeId
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              columns: node.data.columns.filter((col: Column) => col.id !== columnId),
+            },
+          }
+        : node
+    );
+    
+    setStateWithHistory({ nodes: newNodes }, 'Remove Column');
     
     // Sync to Yjs if available
-    const { yNodes, nodes } = get();
+    const { yNodes } = get();
     if (yNodes) {
       yNodes.delete(0, yNodes.length);
-      yNodes.push(nodes);
+      yNodes.push(newNodes);
     }
   },
 
@@ -528,7 +554,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     const newNodes = diagramData.nodes || [];
     const newEdges = diagramData.edges || [];
     
-    // Clear current state and import new data
+    // Set the state directly, WITHOUT saving to history
     set({
       nodes: newNodes,
       edges: newEdges,
@@ -536,6 +562,13 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       contextMenuNodeId: null,
       pendingConnection: null,
     });
+
+    // Now, reset the history with this as the initial state
+    const initialHistoryState = {
+      nodes: JSON.parse(JSON.stringify(newNodes)),
+      edges: JSON.parse(JSON.stringify(newEdges)),
+    };
+    set({ history: [initialHistoryState], historyIndex: 0 });
     
     // Sync to Yjs if available
     const { yNodes, yEdges } = get();
@@ -545,9 +578,6 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       yEdges.delete(0, yEdges.length);
       yEdges.push(newEdges);
     }
-    
-    // Save state to history after importing (overwrites current history)
-    set({ history: [{ nodes: newNodes, edges: newEdges }], historyIndex: 0 });
   },
 
   initializeYjs: (doc: Y.Doc) => {
@@ -596,7 +626,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       return node;
     });
 
-    set({ nodes: newNodes });
+    setStateWithHistory({ nodes: newNodes }, 'AI: Add Fields');
     
     // Sync to Yjs if available
     if (yNodes) {
@@ -624,7 +654,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       return node;
     });
 
-    set({ nodes: newNodes });
+    setStateWithHistory({ nodes: newNodes }, 'AI: Remove Fields');
     
     // Sync to Yjs if available
     if (yNodes) {
@@ -655,7 +685,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       return node;
     });
 
-    set({ nodes: newNodes });
+    setStateWithHistory({ nodes: newNodes }, 'AI: Modify Fields');
     
     // Sync to Yjs if available
     if (yNodes) {
@@ -759,7 +789,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       console.log('AI edge created:', currentEdges[currentEdges.length - 1]);
     });
 
-    set({ edges: currentEdges });
+    setStateWithHistory({ edges: currentEdges, nodes: get().nodes }, 'AI: Add Relationships');
     
     // Sync to Yjs if available
     if (yEdges && yNodes) {
@@ -782,7 +812,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     const { edges, yEdges } = get();
     
     const newEdges = edges.filter(edge => !relationshipIds.includes(edge.id));
-    set({ edges: newEdges });
+    setStateWithHistory({ edges: newEdges }, 'AI: Remove Relationships');
     
     // Sync to Yjs if available
     if (yEdges) {
@@ -924,8 +954,8 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       });
     });
     
-    // Apply the new positions
-    set({ nodes: newNodes });
+    // Apply the new positions with history tracking
+    setStateWithHistory({ nodes: newNodes }, 'Auto Layout');
     
     // Sync to Yjs if available
     if (yNodes) {
@@ -937,5 +967,6 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     nodes.forEach(node => {
       setTimeout(() => get().flashTable(node.id), Math.random() * 300);
     });
-  },
-}));
+  }
+  };
+});
