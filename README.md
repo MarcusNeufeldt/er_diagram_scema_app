@@ -3,29 +3,36 @@
 [![GitHub](https://img.shields.io/github/license/MarcusNeufeldt/er_diagram_scema_app)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D%2018-brightgreen)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/react-%5E18.0-blue)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/typescript-%5E4.0-blue)](https://www.typescriptlang.org/)
 
-A modern, AI-powered database diagram tool with intelligent auto-layout and real-time schema generation capabilities.
+A modern, AI-powered database diagram tool with intelligent auto-layout, real-time collaboration, and comprehensive visual design capabilities. Create, modify, and analyze database schemas through natural language or intuitive visual editing.
 
 ## ✨ Features
 
 ### 🎯 **Core Functionality**
-- **Visual Database Design** - Interactive drag-and-drop table creation
-- **Smart Relationships** - Easy foreign key connections with visual feedback
-- **Auto-Layout** - Intelligent left-to-right hierarchical arrangement
+- **Visual Database Design** - Interactive drag-and-drop table creation with resizable nodes
+- **Smart Relationships** - Easy foreign key connections with visual feedback and cardinality
+- **Auto-Layout** - Intelligent left-to-right hierarchical arrangement based on dependencies
+- **Quick Field Addition** - One-click "+" button for rapid table building
+- **Advanced Field Editing** - Inline editing with comprehensive data type dropdowns
 - **Export/Import** - JSON, SQL DDL, and custom diagram formats
 
-### 🤖 **AI Integration**
-- **OpenRouter Integration** - Powered by Google Gemini 2.5 Flash
-- **Natural Language Schema Generation** - Create databases from descriptions
-- **Intelligent Modifications** - Add/modify tables through conversation
-- **Schema Analysis** - AI-powered recommendations and insights
-- **Reasoning Models** - Configurable thinking model support
+### 🤖 **AI Integration** 
+- **OpenRouter Integration** - Powered by Google Gemini 2.5 Flash with reasoning models
+- **Natural Language Schema Generation** - Create complete databases from descriptions
+- **Intelligent Modifications** - Add/modify tables and relationships through conversation
+- **Schema Analysis** - AI-powered recommendations and performance insights
+- **Incremental Updates** - AI can modify existing schemas without full regeneration
+- **Visual Context Awareness** - AI understands current diagram state for smart suggestions
 
-### 🎨 **Visual Features**
+### 🎨 **Visual & UX Features**
+- **Professional Layout** - Industry-standard ER diagram styling with proper z-index layering
 - **Animated Updates** - Smooth transitions when AI modifies schemas
-- **Relationship-Aware Layout** - Tables arranged by dependency hierarchy
-- **Professional Appearance** - Industry-standard ER diagram styling
-- **Real-time Collaboration** - WebSocket-based multi-user editing
+- **Magnetic Grid System** - Snap-to-grid functionality for precise alignment
+- **Collaboration Tools** - Sticky notes and background shapes for team communication
+- **Comprehensive Undo/Redo** - Full history tracking for all operations
+- **Resizable Elements** - Tables, sticky notes, and shapes can be resized with visual handles
+- **Background Grouping** - Use shapes to visually organize table relationships
 
 ## 🚀 Quick Start
 
@@ -74,24 +81,36 @@ A modern, AI-powered database diagram tool with intelligent auto-layout and real
    - Navigate to `http://localhost:3000`
    - Start designing your database schemas!
 
-## 🎮 Usage
+## 🎮 Usage Guide
 
-### Creating Schemas
-1. **Manual Creation**: Click "Add Table" to create tables manually
-2. **AI Generation**: Use the AI Assistant to generate schemas from descriptions
-3. **Import**: Upload existing JSON diagrams or SQL files
+### 📋 **Creating & Editing Tables**
+1. **Quick Creation**: Double-click empty canvas or use "Add Table" button
+2. **Add Fields**: Use the "+" button at bottom of each table for rapid field addition  
+3. **Edit Fields**: Hover over field → click pencil icon → edit name/type inline
+4. **Data Types**: Choose from comprehensive dropdown (TEXT, VARCHAR, INT, BOOLEAN, etc.)
+5. **Relationships**: Drag from source field handle to target field to create connections
 
-### Auto-Layout
-- Click the green **"Auto Layout"** button to arrange tables intelligently
-- Tables are positioned left-to-right based on dependency hierarchy
-- Referenced tables appear on the left, referencing tables on the right
+### 🎨 **Visual Organization**
+- **Auto-Layout**: Click green "Auto Layout" button for intelligent table arrangement
+- **Magnetic Grid**: Toggle grid snap for precise alignment (20px default)
+- **Sticky Notes**: Add colored notes for team communication and documentation
+- **Background Shapes**: Use rectangles, circles, diamonds to group related tables
+- **Resizing**: Select any element and drag resize handles to adjust size
 
-### AI Assistant
-- Click the "AI Assistant" button to open the chat panel
-- Try prompts like:
-  - "Create a blog schema with users, posts, and comments"
-  - "Add a categories table with a many-to-many relationship to posts"
-  - "Analyze this schema for performance improvements"
+### 🤖 **AI Assistant**
+- **Open Chat**: Click "AI Assistant" to open the smart chat panel
+- **Natural Language**: Describe schemas in plain English
+- **Example Prompts**:
+  - "Create an e-commerce schema with products, orders, and customers"
+  - "Add user authentication tables with roles and permissions"
+  - "Analyze this schema for normalization opportunities"
+  - "Add a many-to-many relationship between posts and tags"
+
+### ⚡ **Productivity Features**
+- **Undo/Redo**: Comprehensive history tracking (Ctrl+Z/Ctrl+Y)
+- **Property Panel**: Select tables for detailed editing in right sidebar
+- **Context Menus**: Right-click tables/fields for quick actions
+- **Keyboard Shortcuts**: ESC to cancel, Enter to save, F2 to rename
 
 ## 🛠️ Configuration
 
@@ -143,10 +162,12 @@ node test-summary.js
 
 ## 🎯 Key Technologies
 
-- **Frontend**: React, TypeScript, ReactFlow, Zustand, TailwindCSS
-- **Backend**: Node.js, WebSocket, Y.js (collaboration)
-- **AI**: OpenRouter, Google Gemini 2.5 Flash
-- **Database**: JSON-based storage (extensible)
+- **Frontend**: React 18, TypeScript, ReactFlow, Zustand, TailwindCSS, Lucide Icons
+- **Backend**: Node.js, WebSocket, Y.js (real-time collaboration)
+- **AI**: OpenRouter API, Google Gemini 2.5 Flash, Reasoning Models
+- **Database**: JSON-based storage with extensible architecture
+- **Visualization**: ReactFlow with custom nodes, NodeResizer, magnetic grid system
+- **State Management**: Zustand with comprehensive undo/redo history tracking
 
 ## 🤝 Contributing
 
@@ -167,12 +188,25 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Y.js** for real-time collaboration
 - **Zustand** for state management
 
+## 🎬 **Recent Updates**
+
+### v2.0 - Enhanced UX & Collaboration Features
+- ✅ **Quick Field Addition** - One-click "+" buttons for rapid table building
+- ✅ **Improved Data Types** - Comprehensive dropdown with TEXT as default
+- ✅ **Collaboration Tools** - Sticky notes and background shapes for team communication
+- ✅ **Magnetic Grid System** - Professional snap-to-grid alignment (20px)
+- ✅ **Enhanced Resizing** - All elements (tables, notes, shapes) now resizable
+- ✅ **Better Undo/Redo** - Comprehensive history tracking for all operations
+- ✅ **Visual Layering** - Proper z-index: shapes → sticky notes → tables
+- ✅ **AI Persona Fix** - Improved AI understanding of visual connections
+- ✅ **Dropdown Improvements** - Fixed scrolling and interaction issues
+
 ## 🔗 Links
 
-- **Live Demo**: [scema.app](https://scema.app)
-- **Documentation**: [docs.scema.app](https://docs.scema.app)
+- **Repository**: [GitHub](https://github.com/MarcusNeufeldt/er_diagram_scema_app)
 - **Issues**: [GitHub Issues](https://github.com/MarcusNeufeldt/er_diagram_scema_app/issues)
+- **Releases**: [GitHub Releases](https://github.com/MarcusNeufeldt/er_diagram_scema_app/releases)
 
 ---
 
-Made with ❤️ for the database design community
+Made with ❤️ for the database design community | Powered by AI
