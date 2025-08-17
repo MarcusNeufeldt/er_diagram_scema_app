@@ -366,7 +366,9 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         {/* AI Assistant */}
         <button
           onClick={onOpenAIChat}
-          className="flex items-center space-x-1 px-3 py-1.5 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors"
+          disabled={isReadOnly}
+          className="flex items-center space-x-1 px-3 py-1.5 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-400"
+          title={isReadOnly ? "AI Assistant is disabled in read-only mode" : "Open AI Assistant"}
         >
           <Bot size={16} />
           <span className="text-sm">AI Assistant</span>

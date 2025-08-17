@@ -19,7 +19,7 @@ export const DiagramView: React.FC = () => {
   const { diagramId } = useParams<{ diagramId: string }>();
   const navigate = useNavigate();
   const { initializeCollaboration, doc } = useCollaborationStore();
-  const { initializeYjs, pendingConnection, confirmConnection, cancelConnection, editingEdgeId, edges, undo, redo, importDiagram, setCurrentDiagramId } = useDiagramStore();
+  const { initializeYjs, pendingConnection, confirmConnection, cancelConnection, editingEdgeId, edges, undo, redo, importDiagram, setCurrentDiagramId, isReadOnly } = useDiagramStore();
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(userService.getCurrentUser());
   const [diagramInfo, setDiagramInfo] = useState<any>(null);
@@ -45,6 +45,13 @@ export const DiagramView: React.FC = () => {
       setCurrentDiagramId(diagramId);
     }
   }, [diagramId, setCurrentDiagramId]);
+
+  // Close AI chat when entering read-only mode
+  useEffect(() => {
+    if (isReadOnly && isAIChatOpen) {
+      setIsAIChatOpen(false);
+    }
+  }, [isReadOnly, isAIChatOpen]);
 
   // Initialize diagram locking
   useDiagramLocking({

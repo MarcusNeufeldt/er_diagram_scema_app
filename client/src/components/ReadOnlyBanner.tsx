@@ -7,7 +7,7 @@ const ReadOnlyBanner: React.FC = () => {
   if (!isReadOnly) return null;
 
   return (
-    <div className="absolute top-0 left-0 right-0 z-50 bg-yellow-100 border-b border-yellow-300 px-4 py-2">
+    <div className="bg-yellow-100 border-b border-yellow-300 px-4 py-2">
       <div className="flex items-center justify-center">
         <div className="flex items-center gap-2">
           <svg 

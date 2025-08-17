@@ -19,7 +19,8 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
     edges, 
     importDiagram,
     flashTable,
-    currentDiagramId
+    currentDiagramId,
+    isReadOnly
   } = useDiagramStore();
 
   const scrollToBottom = () => {
@@ -834,9 +835,9 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
         <div className="flex items-center space-x-2">
           <button
             onClick={handleResetChat}
-            disabled={isLoading || !currentDiagramId}
+            disabled={isLoading || !currentDiagramId || isReadOnly}
             className="p-1.5 text-white hover:text-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Clear chat history"
+            title={isReadOnly ? "Clear chat history is disabled in read-only mode" : "Clear chat history"}
           >
             <RotateCcw size={18} />
           </button>
@@ -849,6 +850,18 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
         </div>
       </div>
 
+      {/* Read-Only Notice */}
+      {isReadOnly && (
+        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-3">
+          <div className="flex items-center text-yellow-800">
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.728-.833-2.498 0L4.316 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <span className="text-sm font-medium">AI Assistant is disabled in read-only mode</span>
+          </div>
+        </div>
+      )}
+
       {/* Quick Actions */}
       <div className="p-4 border-b border-gray-200">
         <h3 className="text-sm font-medium text-gray-700 mb-2">Quick Actions</h3>
@@ -857,7 +870,7 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
             <button
               key={index}
               onClick={action.action}
-              disabled={isLoading || isGenerating}
+              disabled={isLoading || isGenerating || isReadOnly}
               className="w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {action.label}
@@ -932,14 +945,14 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyDown={handleKeyPress}
-            placeholder="Ask me about database design, generate schemas, or get suggestions..."
+            placeholder={isReadOnly ? "AI Assistant is disabled in read-only mode" : "Ask me about database design, generate schemas, or get suggestions..."}
             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             rows={2}
-            disabled={isLoading}
+            disabled={isLoading || isReadOnly}
           />
           <button
             onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || isLoading}
+            disabled={!inputMessage.trim() || isLoading || isReadOnly}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send size={16} />
