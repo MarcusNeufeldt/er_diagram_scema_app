@@ -40,7 +40,9 @@
       "Bash(del \"C:\\Users\\marcu\\PycharmProjects\\pythonProject\\test\\draw_io_clone\\persistence-server.js\")",
       "Bash(git restore:*)",
       "WebFetch(domain:vercel.com)",
-      "Bash(del \"C:\\Users\\marcu\\PycharmProjects\\pythonProject\\test\\draw_io_clone\\client\\src\\components\\Toolbar.tsx\")"
+      "Bash(del \"C:\\Users\\marcu\\PycharmProjects\\pythonProject\\test\\draw_io_clone\\client\\src\\components\\Toolbar.tsx\")",
+      "Bash(npx prisma:*)",
+      "Bash(del create-chat-table.js)"
     ],
     "deny": [],
     "ask": [],

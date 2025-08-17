@@ -19,11 +19,13 @@ A modern, AI-powered database diagram tool with intelligent auto-layout, real-ti
 
 ### 🤖 **AI Integration** 
 - **OpenRouter Integration** - Powered by Google Gemini 2.5 Flash with reasoning models
+- **Persistent Chat History** - AI remembers full conversation context per diagram
 - **Natural Language Schema Generation** - Create complete databases from descriptions
 - **Intelligent Modifications** - Add/modify tables and relationships through conversation
 - **Schema Analysis** - AI-powered recommendations and performance insights
 - **Incremental Updates** - AI can modify existing schemas without full regeneration
 - **Visual Context Awareness** - AI understands current diagram state for smart suggestions
+- **Context Preservation** - Follow-up commands like "apply those fixes" work seamlessly
 
 ### 🎨 **Visual & UX Features**
 - **Professional Layout** - Industry-standard ER diagram styling with proper z-index layering

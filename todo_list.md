@@ -32,6 +32,9 @@
 - [x] **Smart Suggestions** - AI-powered recommendations via function calling ✅
 - [x] **Natural Language Queries** - Ask questions about the current schema ✅
 - [x] **Reasoning Configuration** - Full support for OpenRouter thinking models with effort levels ✅
+- [x] **Persistent Chat History** - AI remembers full conversation context per diagram ✅
+- [x] **Context Preservation** - Follow-up commands work seamlessly with chat persistence ✅
+- [x] **Reset Chat Functionality** - Clear conversation history with confirmation dialog ✅
 - [ ] **Export Schema Descriptions** - Generate documentation from schema via AI
 
 ### AI Integration - Completed Features ✨
@@ -46,6 +49,11 @@
 - **Cost Control** - Easy enable/disable reasoning for budget management
 - **Schema Analysis Fix** - Fixed analysis returning readable text instead of "[object Object]"
 - **Token Limits Removed** - Removed MAX_TOKENS restrictions for longer AI responses
+- **Persistent Chat History** - Per-diagram conversation storage using Turso SQLite database
+- **Stateful API Endpoints** - GET/POST/DELETE operations for chat history management
+- **Tool Execution Preservation** - AI tool results properly saved to conversation history
+- **Context Recovery** - Follow-up commands like "apply those fixes" work seamlessly
+- **Reset Chat Feature** - Clear conversation history with confirmation dialog
 
 ### AI Integration - Current Issues 🔧
 - **AI-Generated Connections Not Clickable** - Edges created by AI are not responding to double-click events
@@ -60,6 +68,15 @@
     - ✅ Added delay to ensure Handle components render first
     - ❌ setTimeout for edge application not firing as expected
   - Next steps: May need to investigate ReactFlow's internal edge registration or use a different approach for applying AI-generated edges
+
+### Persistent Chat History Implementation 🚀 ✅ COMPLETED
+- **Database Schema** - ChatMessage table with foreign key to Diagram table
+- **API Architecture** - `/api/diagram-chat?id=` endpoint with GET/POST/DELETE support
+- **Frontend Integration** - aiService methods for chat history management
+- **Tool Execution** - Complete tool call results preservation in conversation
+- **Context Preservation** - AI remembers analysis results for follow-up questions
+- **Reset Functionality** - Clear chat history with confirmation dialog
+- **Error Handling** - Graceful fallbacks when chat history fails to load
 
 ### Recent Improvements ✨
 - **Reasoning Models Support** - Added complete OpenRouter thinking model configuration

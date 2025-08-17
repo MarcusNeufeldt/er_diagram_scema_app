@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, RefreshCw } from 'lucide-react';
+import { Send, Bot, User, Sparkles, RefreshCw, RotateCcw } from 'lucide-react';
 import { aiService, ChatMessage, DatabaseSchema } from '../services/aiService';
 import { useDiagramStore } from '../stores/diagramStore';
 
@@ -9,13 +9,7 @@ interface AIChatPanelProps {
 }
 
 export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'assistant',
-      content: 'Hi! I\'m Data Modeler AI, your intelligent assistant for this visual database diagramming tool. I can help you create schemas, modify tables and relationships on the canvas, and analyze your designs. I understand the visual connections between your tables and will help maintain them as we work together. What would you like to build today?',
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -24,7 +18,8 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
     nodes, 
     edges, 
     importDiagram,
-    flashTable
+    flashTable,
+    currentDiagramId
   } = useDiagramStore();
 
   const scrollToBottom = () => {
@@ -34,6 +29,47 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Fetch chat history when the panel is opened for a specific diagram
+  useEffect(() => {
+    if (isOpen && currentDiagramId) {
+      console.log(`📜 Loading chat history for diagram: ${currentDiagramId}`);
+      setIsLoading(true);
+      
+      aiService.getChatHistory(currentDiagramId)
+        .then(history => {
+          console.log(`📜 Loaded ${history.length} chat messages`);
+          if (history.length === 0) {
+            // If no history, show the initial greeting
+            setMessages([{ 
+              role: 'assistant', 
+              content: "Hi! I'm Data Modeler AI, your intelligent assistant for this visual database diagramming tool. I can help you create schemas, modify tables and relationships on the canvas, and analyze your designs. I understand the visual connections between your tables and will help maintain them as we work together. What would you like to build today?", 
+              timestamp: new Date() 
+            }]);
+          } else {
+            setMessages(history);
+          }
+        })
+        .catch(err => {
+          console.error('❌ Error loading chat history:', err);
+          // Handle error fetching history - show error message
+          const errorMessage: ChatMessage = { 
+            role: 'assistant', 
+            content: `Error loading chat history: ${err.message}. Starting fresh conversation.`, 
+            timestamp: new Date() 
+          };
+          setMessages([errorMessage]);
+        })
+        .finally(() => setIsLoading(false));
+    } else if (isOpen && !currentDiagramId) {
+      // No diagram ID available - show default message
+      setMessages([{ 
+        role: 'assistant', 
+        content: "Please open a diagram to start chatting with the AI assistant.", 
+        timestamp: new Date() 
+      }]);
+    }
+  }, [isOpen, currentDiagramId]);
 
   // Convert current diagram to DatabaseSchema format
   const getCurrentSchema = (): DatabaseSchema | undefined => {
@@ -479,7 +515,7 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
   };
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return;
+    if (!inputMessage.trim() || isLoading || !currentDiagramId) return;
 
     const userMessage: ChatMessage = {
       role: 'user',
@@ -494,25 +530,31 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
 
     try {
       const currentSchema = getCurrentSchema();
-      console.log('🎯 Sending message to AI:', currentInput);
+      console.log('🎯 Sending message to AI via stateful chat:', currentInput);
       console.log('📊 Current schema:', currentSchema);
+      console.log('📍 Diagram ID:', currentDiagramId);
       
-      const response = await aiService.chatAboutSchema(
+      // Use the new stateful chat endpoint
+      const response = await aiService.postChatMessage(
+        currentDiagramId,
         currentInput,
-        currentSchema,
-        messages
+        currentSchema
       );
       
-      console.log('📦 Response from aiService:', response);
+      console.log('📦 Response from stateful chat:', response);
       console.log('📦 Response type:', response.type);
       console.log('📦 Response has schema?', !!response.schema);
+
+      // The stateful API already saves messages to database, 
+      // so we don't need to duplicate user messages. 
+      // We just need to handle the AI response for display.
 
       // Check if AI wants to use a tool
       if (response.type === 'tool_call') {
         console.log('🔧 Tool call detected:', response.tool_call);
         const toolCall = response.tool_call;
         
-        // Show AI's message first
+        // Show AI's message first if provided
         if (response.message) {
           const aiMessage: ChatMessage = {
             role: 'assistant',
@@ -546,13 +588,15 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
           setMessages(prev => [...prev, toolMessage]);
         }
 
-        // Regular chat response
-        const assistantMessage: ChatMessage = {
-          role: 'assistant',
-          content: response.content || 'I understand, but I\'m not sure how to respond to that.',
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, assistantMessage]);
+        // Display AI response (the message was already saved to DB by the backend)
+        if (response.content) {
+          const assistantMessage: ChatMessage = {
+            role: 'assistant',
+            content: response.content,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, assistantMessage]);
+        }
       }
     } catch (error) {
       const errorMessage: ChatMessage = {
@@ -708,6 +752,53 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
     }
   };
 
+  const handleResetChat = async () => {
+    if (!currentDiagramId) {
+      console.warn('No diagram ID available for resetting chat');
+      return;
+    }
+
+    // Confirm with user before clearing
+    if (!window.confirm('Are you sure you want to clear all chat history for this diagram? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await aiService.clearChatHistory(currentDiagramId);
+      console.log(`✅ Chat history cleared: ${result.deletedCount} messages deleted`);
+      
+      // Reset messages to initial greeting
+      setMessages([{ 
+        role: 'assistant', 
+        content: "Hi! I'm Data Modeler AI, your intelligent assistant for this visual database diagramming tool. I can help you create schemas, modify tables and relationships on the canvas, and analyze your designs. I understand the visual connections between your tables and will help maintain them as we work together. What would you like to build today?", 
+        timestamp: new Date() 
+      }]);
+      
+      // Show success message
+      const successMessage: ChatMessage = {
+        role: 'assistant',
+        content: `🗑️ Chat history cleared! Deleted ${result.deletedCount} messages. Starting fresh conversation.`,
+        timestamp: new Date(),
+      };
+      
+      setTimeout(() => {
+        setMessages(prev => [...prev, successMessage]);
+      }, 500);
+      
+    } catch (error) {
+      console.error('❌ Failed to clear chat history:', error);
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: `Failed to clear chat history: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -740,12 +831,22 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
           <Bot size={24} />
           <h2 className="text-lg font-semibold">AI Assistant</h2>
         </div>
-        <button
-          onClick={onClose}
-          className="text-white hover:text-gray-200 transition-colors"
-        >
-          ×
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleResetChat}
+            disabled={isLoading || !currentDiagramId}
+            className="p-1.5 text-white hover:text-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Clear chat history"
+          >
+            <RotateCcw size={18} />
+          </button>
+          <button
+            onClick={onClose}
+            className="text-white hover:text-gray-200 transition-colors"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       {/* Quick Actions */}

@@ -45,6 +45,82 @@ export interface ChatMessage {
 }
 
 class AIService {
+  // New method for fetching chat history for a specific diagram
+  async getChatHistory(diagramId: string): Promise<ChatMessage[]> {
+    const url = `${API_BASE_URL}/diagram-chat?id=${diagramId}`;
+    console.log(`📞 Fetching chat history from URL: ${url}`);
+    console.log(`📞 API_BASE_URL: ${API_BASE_URL}`);
+    console.log(`📞 Diagram ID: ${diagramId}`);
+    
+    const response = await fetch(url);
+    console.log(`📞 Response status: ${response.status}`);
+    console.log(`📞 Response headers:`, response.headers);
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`📞 Error response text:`, text.substring(0, 200));
+      throw new Error(`Failed to fetch chat history: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log(`📞 Parsed response data:`, data);
+    
+    // Convert date strings to Date objects
+    return data.map((msg: any) => ({ 
+      ...msg, 
+      timestamp: new Date(msg.createdAt || msg.timestamp) 
+    }));
+  }
+
+  // New method for posting messages to the stateful chat endpoint
+  async postChatMessage(diagramId: string, message: string, currentSchema?: DatabaseSchema): Promise<any> {
+    console.log(`💬 Posting message to diagram ${diagramId}:`, message.substring(0, 100));
+    
+    const response = await fetch(`${API_BASE_URL}/diagram-chat?id=${diagramId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, currentSchema }),
+    });
+    
+    if (!response.ok) {
+        const errorText = await response.text();
+        try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(errorJson.error || 'Failed to chat with AI');
+        } catch(e) {
+            throw new Error(`Failed to chat with AI: ${errorText}`);
+        }
+    }
+    
+    const data = await response.json();
+    console.log('💬 Stateful chat response:', data);
+    return data;
+  }
+
+  // New method for clearing chat history
+  async clearChatHistory(diagramId: string): Promise<{ success: boolean; deletedCount: number }> {
+    console.log(`🗑️ Clearing chat history for diagram ${diagramId}`);
+    
+    const response = await fetch(`${API_BASE_URL}/diagram-chat?id=${diagramId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+    if (!response.ok) {
+        const errorText = await response.text();
+        try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(errorJson.error || 'Failed to clear chat history');
+        } catch(e) {
+            throw new Error(`Failed to clear chat history: ${errorText}`);
+        }
+    }
+    
+    const data = await response.json();
+    console.log('🗑️ Chat history cleared:', data);
+    return { success: data.success, deletedCount: data.deletedCount };
+  }
+
   async generateSchema(prompt: string, existingSchema?: DatabaseSchema): Promise<DatabaseSchema> {
     console.log('🔄 generateSchema called with prompt:', prompt);
     console.log('🔄 Existing schema provided:', !!existingSchema);

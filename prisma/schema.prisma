@@ -6,7 +6,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = env("TURSO_DATABASE_URL")
 }
 
 model User {
@@ -18,18 +18,30 @@ model User {
 }
 
 model Diagram {
-  id              String    @id @default(cuid())
+  id              String        @id @default(cuid())
   name            String
-  nodes           Json      // Store the ReactFlow nodes array
-  edges           Json      // Store the ReactFlow edges array
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  nodes           Json          // Store the ReactFlow nodes array
+  edges           Json          // Store the ReactFlow edges array
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   
   // Locking Mechanism Fields
   lockedByUserId  String?
   lockExpiresAt   DateTime?
   
   // User Relationship
-  owner     User      @relation(fields: [ownerId], references: [id])
-  ownerId   String
+  owner       User          @relation(fields: [ownerId], references: [id])
+  ownerId     String
+  
+  // Chat History Relationship
+  chatMessages ChatMessage[]
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  diagram     Diagram  @relation(fields: [diagramId], references: [id], onDelete: Cascade)
+  diagramId   String
+  role        String   // "user" or "assistant"
+  content     String
+  createdAt   DateTime @default(now())
 }
