@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ReactFlowProvider } from 'reactflow';
 import { ArrowLeft, Users } from 'lucide-react';
-import { Toolbar } from './Toolbar';
+import { ToolbarClean } from './ToolbarClean';
 import { Canvas } from './Canvas';
 import { PropertyPanel } from './PropertyPanel';
 import { CollaboratorCursors } from './CollaboratorCursors';
@@ -192,7 +192,7 @@ export const DiagramView: React.FC = () => {
             )}
           </div>
           
-          <Toolbar onOpenAIChat={() => setIsAIChatOpen(true)} />
+          <ToolbarClean onOpenAIChat={() => setIsAIChatOpen(true)} />
         </div>
       </div>
       

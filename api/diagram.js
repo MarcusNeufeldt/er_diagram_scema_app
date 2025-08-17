@@ -144,11 +144,34 @@ async function updateDiagram(req, res) {
   }
 }
 
+// DELETE /api/diagram?id={id}
+async function deleteDiagram(req, res) {
+  const { id } = req.query;
+  const client = createDbClient();
+
+  try {
+    // Delete the diagram
+    await client.execute({
+      sql: 'DELETE FROM Diagram WHERE id = ?',
+      args: [id]
+    });
+
+    res.status(200).json({ success: true, message: 'Diagram deleted successfully' });
+  } catch (error) {
+    console.error('Delete diagram error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  } finally {
+    client.close();
+  }
+}
+
 module.exports = async (req, res) => {
   if (req.method === 'GET') {
     return getDiagram(req, res);
   } else if (req.method === 'PUT') {
     return updateDiagram(req, res);
+  } else if (req.method === 'DELETE') {
+    return deleteDiagram(req, res);
   } else {
     return res.status(405).json({ error: 'Method not allowed' });
   }

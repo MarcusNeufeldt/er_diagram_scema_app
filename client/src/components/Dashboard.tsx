@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle, FileText, Users, Clock, Lock } from 'lucide-react';
+import { PlusCircle, FileText, Users, Clock, Lock, Trash2, MoreVertical } from 'lucide-react';
 import { userService } from '../services/userService';
 
 interface Diagram {
@@ -25,6 +25,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
   const [diagrams, setDiagrams] = useState<Diagram[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const currentUser = userService.getCurrentUser();
 
   useEffect(() => {
@@ -50,6 +51,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
     }
   };
 
+  const deleteDiagram = async (diagramId: string, diagramName: string) => {
+    if (!confirm(`Are you sure you want to delete "${diagramName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+      const response = await fetch(`${API_BASE_URL}/diagram?id=${diagramId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setDiagrams(prev => prev.filter(d => d.id !== diagramId));
+        setMenuOpenId(null);
+      } else {
+        throw new Error('Failed to delete diagram');
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete diagram');
+    }
+  };
+
   const createNewDiagram = async () => {
     if (!currentUser) {
       alert('Please log in to create a diagram');
@@ -71,6 +94,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
           nodes: [],
           edges: [],
           ownerId: currentUser.id,
+          ownerName: currentUser.name,
+          ownerEmail: currentUser.email,
         }),
       });
 
@@ -199,22 +224,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
               const collaborationStatus = getCollaborationStatus(diagram);
               
               return (
-                <Link
+                <div
                   key={diagram.id}
-                  to={`/diagram/${diagram.id}`}
-                  className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow p-6 block"
+                  className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow p-6 relative"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">
-                      {diagram.name}
-                    </h3>
-                    {collaborationStatus && (
-                      <div className={`text-sm ${collaborationStatus.color} flex items-center`}>
-                        <span className="mr-1">{collaborationStatus.icon}</span>
-                        {collaborationStatus.text}
+                  <Link
+                    to={`/diagram/${diagram.id}`}
+                    className="block"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900 truncate">
+                        {diagram.name}
+                      </h3>
+                      <div className="flex items-center space-x-2">
+                        {collaborationStatus && (
+                          <div className={`text-sm ${collaborationStatus.color} flex items-center`}>
+                            <span className="mr-1">{collaborationStatus.icon}</span>
+                            {collaborationStatus.text}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </div>
                   
                   <div className="space-y-2 text-sm text-gray-600">
                     <div className="flex items-center">
@@ -245,7 +275,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
                       )}
                     </div>
                   </div>
-                </Link>
+                  </Link>
+                  
+                  {/* Action Menu - Only show for diagram owner */}
+                  {diagram.owner.id === currentUser?.id && (
+                    <div className="absolute top-4 right-4">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setMenuOpenId(menuOpenId === diagram.id ? null : diagram.id);
+                        }}
+                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      >
+                        <MoreVertical className="w-5 h-5 text-gray-500" />
+                      </button>
+                      
+                      {menuOpenId === diagram.id && (
+                        <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              deleteDiagram(diagram.id, diagram.name);
+                            }}
+                            className="flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

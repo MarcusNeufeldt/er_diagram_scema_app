@@ -44,10 +44,24 @@ module.exports = async (req, res) => {
       
     } else if (req.method === 'POST') {
       // Create new diagram
-      const { name, nodes, edges, ownerId } = req.body;
+      const { name, nodes, edges, ownerId, ownerName, ownerEmail } = req.body;
       
       if (!name || !ownerId) {
         return res.status(400).json({ error: 'Name and ownerId are required' });
+      }
+      
+      // First, ensure the user exists (upsert)
+      const userResult = await client.execute({
+        sql: 'SELECT id FROM User WHERE id = ?',
+        args: [ownerId]
+      });
+      
+      if (userResult.rows.length === 0) {
+        // Create the user if they don't exist
+        await client.execute({
+          sql: 'INSERT INTO User (id, name, email, createdAt) VALUES (?, ?, ?, ?)',
+          args: [ownerId, ownerName || 'Anonymous User', ownerEmail || null, new Date().toISOString()]
+        });
       }
       
       const diagramId = 'diagram-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
