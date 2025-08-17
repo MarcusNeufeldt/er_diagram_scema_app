@@ -508,11 +508,15 @@ Respond with plain text analysis, not as a tool call.`;
       console.log('✅ Analysis content received:', !!analysis);
       console.log('📏 Analysis length:', analysis?.length || 0);
       console.log('📝 Analysis preview:', analysis?.substring(0, 100) + '...');
+      console.log('🔍 Raw analysis value:', JSON.stringify(analysis));
+      console.log('🔍 Analysis type:', typeof analysis);
       
       if (!analysis) {
+        console.error('❌ No analysis content - response.data.choices[0]:', response.data.choices[0]);
         throw new Error('No analysis content received from AI');
       }
       
+      console.log('🎯 Returning analysis:', analysis);
       return analysis;
     } catch (error) {
       console.error('Schema analysis error:', error.response?.data || error.message);

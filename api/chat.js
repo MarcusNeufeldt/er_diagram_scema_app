@@ -32,6 +32,9 @@ module.exports = async (req, res) => {
         // Execute schema analysis
         const analysis = await aiService.analyzeSchema(currentSchema);
         console.log('📊 Analysis result length:', analysis?.length || 0);
+        console.log('📊 Analysis result type:', typeof analysis);
+        console.log('📊 Analysis result value:', JSON.stringify(analysis));
+        console.log('📊 Analysis result preview:', analysis?.substring(0, 50) + '...');
         res.json({ content: analysis });
       } else if (toolCall.function.name === 'generate_database_schema') {
         console.log('🏗️ Executing schema generation');
