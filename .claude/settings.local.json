@@ -36,7 +36,9 @@
       "WebFetch(domain:draw-io-clone-335ze9e4d-marcusneufeldt-googlemailcs-projects.vercel.app)",
       "WebFetch(domain:er-diagram-scema-app.vercel.app)",
       "Bash(curl:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(del \"C:\\Users\\marcu\\PycharmProjects\\pythonProject\\test\\draw_io_clone\\persistence-server.js\")",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": [],

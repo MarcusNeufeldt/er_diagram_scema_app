@@ -2,11 +2,8 @@
   "name": "draw_io_clone",
   "version": "1.0.0",
   "description": "[![GitHub](https://img.shields.io/github/license/MarcusNeufeldt/er_diagram_scema_app)](LICENSE)\r [![Node.js](https://img.shields.io/badge/node-%3E%3D%2018-brightgreen)](https://nodejs.org/)\r [![React](https://img.shields.io/badge/react-%5E18.0-blue)](https://reactjs.org/)\r [![TypeScript](https://img.shields.io/badge/typescript-%5E4.0-blue)](https://www.typescriptlang.org/)",
-  "main": "debug-edge-direction.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node persistence-server.js",
-    "dev": "node persistence-server.js",
     "build": "cd client && npm install && npm run build",
     "vercel-build": "cd client && npm install && npm run build"
   },

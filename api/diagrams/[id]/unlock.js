@@ -1,11 +1,6 @@
-const { createClient } = require('@libsql/client');
+const { PrismaClient } = require('@prisma/client');
 
-function createDbClient() {
-  return createClient({
-    url: process.env.TURSO_DATABASE_URL,
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  });
-}
+const prisma = new PrismaClient();
 
 // Vercel serverless function for POST /api/diagrams/[id]/unlock
 module.exports = async (req, res) => {
@@ -20,26 +15,28 @@ module.exports = async (req, res) => {
     return res.status(400).json({ success: false, message: 'userId is required' });
   }
 
-  const client = createDbClient();
-
   try {
     // Find the diagram
-    const result = await client.execute({
-      sql: 'SELECT id, lockedByUserId FROM Diagram WHERE id = ?',
-      args: [id]
+    const diagram = await prisma.diagram.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        lockedByUserId: true,
+      },
     });
 
-    if (result.rows.length === 0) {
+    if (!diagram) {
       return res.status(404).json({ success: false, message: 'Diagram not found' });
     }
 
-    const diagram = result.rows[0];
-
     // Only unlock if the current user has the lock
     if (diagram.lockedByUserId === userId) {
-      await client.execute({
-        sql: 'UPDATE Diagram SET lockedByUserId = NULL, lockExpiresAt = NULL WHERE id = ?',
-        args: [id]
+      await prisma.diagram.update({
+        where: { id },
+        data: {
+          lockedByUserId: null,
+          lockExpiresAt: null,
+        },
       });
       return res.status(200).json({ success: true, message: 'Lock released' });
     }
@@ -50,6 +47,6 @@ module.exports = async (req, res) => {
     console.error('Unlock diagram error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   } finally {
-    client.close();
+    await prisma.$disconnect();
   }
 };
