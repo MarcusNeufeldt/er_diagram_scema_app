@@ -223,3 +223,34 @@ Deployment: GitHub → Vercel → Serverless Functions
 - **Global CDN** distribution via Vercel
 - **Serverless scaling** for any number of users
 - **Professional URL** for sharing and demos
+
+## Phase 9: Code Quality & Maintenance 🔧
+
+### High Priority - Production Readiness
+- [ ] **Database API Consistency** - Unify all API endpoints to use Prisma instead of mixed Prisma/@libsql
+  - Files using raw SQL: api/diagrams/[id]/lock.js, unlock.js, api/diagrams/index.js
+  - Should all use Prisma for consistency and type safety
+- [ ] **Clean up server/ directory** - Remove obsolete server folder
+  - Move ai-service.js to api/_lib/ai-service.js
+  - Delete server/ directory entirely
+  - Update imports in API endpoints
+
+### Medium Priority - UI Polish
+- [x] **Remove duplicate Undo/Redo buttons** - Clean up ToolbarClean.tsx ✅
+  - Deleted unused old Toolbar.tsx component
+  - ToolbarClean.tsx has only one set of Undo/Redo buttons (correctly placed)
+
+### Low Priority - UX Enhancements (v2.1)
+- [ ] **Read-only mode polling** - Near-live updates when viewing locked diagrams
+  - Poll GET /api/diagrams/[id] every 15-30 seconds
+  - Auto-refresh if updatedAt changed
+- [ ] **Quick column editing** - Mini-toolbar for field properties
+  - Hover actions for Primary Key, Nullable, Default Value
+  - Reduces need to use PropertyPanel
+- [ ] **Relationship hover highlights** - Better edge visualization
+  - Highlight connected fields on edge hover
+  - Highlight edge when hovering FK fields
+- [ ] **Request to Edit feature** - Allow requesting control from current editor
+  - Add edit_request_by_user_id to database
+  - Show notification to current editor
+  - Enable smooth handoff without external communication
