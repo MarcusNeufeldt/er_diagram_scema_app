@@ -58,9 +58,10 @@ module.exports = async (req, res) => {
       
       if (userResult.rows.length === 0) {
         // Create the user if they don't exist
+        const defaultEmail = ownerEmail || `${ownerId}@local.user`;
         await client.execute({
           sql: 'INSERT INTO User (id, name, email, createdAt) VALUES (?, ?, ?, ?)',
-          args: [ownerId, ownerName || 'Anonymous User', ownerEmail || null, new Date().toISOString()]
+          args: [ownerId, ownerName || 'Anonymous User', defaultEmail, new Date().toISOString()]
         });
       }
       
