@@ -7,11 +7,22 @@ class AIService {
     this.baseURL = process.env.OPENROUTER_BASE_URL;
     this.defaultModel = process.env.DEFAULT_AI_MODEL || 'anthropic/claude-3.5-sonnet';
     
+    console.log('🔧 AIService constructor');
+    console.log('🔑 API Key exists:', !!this.apiKey);
+    console.log('🌐 Base URL:', this.baseURL);
+    console.log('🤖 Default model:', this.defaultModel);
+    
     // Reasoning configuration
     this.enableReasoning = process.env.ENABLE_REASONING === 'true';
     this.reasoningEffort = process.env.REASONING_EFFORT || 'medium';
     this.reasoningMaxTokens = parseInt(process.env.REASONING_MAX_TOKENS) || 4000;
     this.reasoningExclude = process.env.REASONING_EXCLUDE === 'true';
+    
+    if (!this.apiKey || !this.baseURL) {
+      console.error('❌ Missing required environment variables');
+      console.error('❌ API Key:', !!this.apiKey);
+      console.error('❌ Base URL:', this.baseURL);
+    }
   }
 
   // Get reasoning configuration for API calls
@@ -325,9 +336,12 @@ ${currentSchema ? JSON.stringify(currentSchema, null, 2) : 'No schema is on the 
         });
 
         const message = response.data.choices[0].message;
+        console.log('🤖 AI Response message:', JSON.stringify(message, null, 2));
 
         // Check if AI wants to use a tool
         if (message.tool_calls && message.tool_calls.length > 0) {
+          console.log('🔧 Tool calls detected:', message.tool_calls.length);
+          console.log('🔧 First tool call:', JSON.stringify(message.tool_calls[0], null, 2));
           return {
             type: 'tool_call',
             tool_call: message.tool_calls[0],
@@ -335,6 +349,7 @@ ${currentSchema ? JSON.stringify(currentSchema, null, 2) : 'No schema is on the 
           };
         }
 
+        console.log('💬 Direct message response');
         return {
           type: 'message',
           content: message.content
@@ -440,6 +455,9 @@ Intent:`;
   // Analyze current schema and provide suggestions (direct API call, no tools)
   async analyzeSchema(schema) {
     try {
+      console.log('🔍 Starting schema analysis');
+      console.log('📊 Schema input:', JSON.stringify(schema, null, 2));
+      
       const prompt = `You are a database expert. Analyze this database schema and provide human-readable suggestions for improvements.
 
 Schema:
@@ -473,6 +491,7 @@ Respond with plain text analysis, not as a tool call.`;
       };
       
       console.log('🔍 Analysis request model:', this.defaultModel);
+      console.log('📤 Sending analysis request to:', this.baseURL);
 
       const response = await axios.post(`${this.baseURL}/chat/completions`, requestBody, {
         headers: {
@@ -481,7 +500,14 @@ Respond with plain text analysis, not as a tool call.`;
         },
       });
 
+      console.log('📥 Analysis response status:', response.status);
+      console.log('📋 Analysis response data:', JSON.stringify(response.data, null, 2));
+
       const analysis = response.data.choices[0]?.message?.content;
+      
+      console.log('✅ Analysis content received:', !!analysis);
+      console.log('📏 Analysis length:', analysis?.length || 0);
+      console.log('📝 Analysis preview:', analysis?.substring(0, 100) + '...');
       
       if (!analysis) {
         throw new Error('No analysis content received from AI');
