@@ -360,6 +360,17 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
   // Convert DatabaseSchema to diagram format (atomic full replacement)
   const applySchemaToCanvas = (schema: DatabaseSchema) => {
     console.log('📋 applySchemaToCanvas called with schema:', schema);
+    
+    if (!schema) {
+      console.error('❌ applySchemaToCanvas called with undefined schema!');
+      return;
+    }
+    
+    if (!schema.tables) {
+      console.error('❌ Schema has no tables property!', schema);
+      return;
+    }
+    
     console.log('📋 Schema has relationships:', schema.relationships);
     
     const timestamp = Date.now();
@@ -483,14 +494,22 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
 
     try {
       const currentSchema = getCurrentSchema();
+      console.log('🎯 Sending message to AI:', currentInput);
+      console.log('📊 Current schema:', currentSchema);
+      
       const response = await aiService.chatAboutSchema(
         currentInput,
         currentSchema,
         messages
       );
+      
+      console.log('📦 Response from aiService:', response);
+      console.log('📦 Response type:', response.type);
+      console.log('📦 Response has schema?', !!response.schema);
 
       // Check if AI wants to use a tool
       if (response.type === 'tool_call') {
+        console.log('🔧 Tool call detected:', response.tool_call);
         const toolCall = response.tool_call;
         
         // Show AI's message first
@@ -506,6 +525,27 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
         // Execute the tool
         await executeTool(toolCall);
       } else {
+        console.log('📝 Regular message response');
+        
+        // Check if response includes a schema modification
+        if (response.schema) {
+          console.log('🎨 Schema modification detected!');
+          console.log('🎨 Modified schema:', response.schema);
+          
+          // Apply the modified schema to the diagram
+          const currentSchema = getCurrentSchema();
+          console.log('🎨 Applying schema changes, isModification:', !!currentSchema);
+          applySchemaChanges(response.schema, !!currentSchema);
+          
+          // Add a tool usage indicator to the chat
+          const toolMessage: ChatMessage = {
+            role: 'assistant',
+            content: '🔧 Using tool: modify_existing_schema',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, toolMessage]);
+        }
+
         // Regular chat response
         const assistantMessage: ChatMessage = {
           role: 'assistant',

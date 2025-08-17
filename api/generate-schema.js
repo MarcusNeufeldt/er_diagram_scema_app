@@ -8,13 +8,14 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { prompt } = req.body;
+    const { prompt, existingSchema } = req.body;
     console.log('🎯 Generating schema for:', prompt);
+    console.log('📊 Has existing schema:', !!existingSchema);
     
-    const schema = await aiService.generateSchema(prompt);
+    const schema = await aiService.generateSchema(prompt, existingSchema);
     console.log('✅ Schema generated successfully');
     
-    res.json(schema);
+    res.json({ schema });
   } catch (error) {
     console.error('❌ Schema generation failed:', error.message);
     res.status(500).json({ 

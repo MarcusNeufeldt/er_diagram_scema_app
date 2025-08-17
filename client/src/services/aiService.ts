@@ -46,6 +46,9 @@ export interface ChatMessage {
 
 class AIService {
   async generateSchema(prompt: string, existingSchema?: DatabaseSchema): Promise<DatabaseSchema> {
+    console.log('🔄 generateSchema called with prompt:', prompt);
+    console.log('🔄 Existing schema provided:', !!existingSchema);
+    
     const response = await fetch(`${API_BASE_URL}/generate-schema`, {
       method: 'POST',
       headers: {
@@ -59,10 +62,18 @@ class AIService {
 
     if (!response.ok) {
       const error = await response.json();
+      console.error('❌ Generate schema failed:', error);
       throw new Error(error.error || 'Failed to generate schema');
     }
 
     const data = await response.json();
+    console.log('📦 Generate schema response:', data);
+    
+    if (!data.schema) {
+      console.error('❌ No schema in response, full data:', data);
+      throw new Error('No schema returned from API');
+    }
+    
     return data.schema;
   }
 
@@ -70,7 +81,7 @@ class AIService {
     message: string,
     currentSchema?: DatabaseSchema,
     conversationHistory: ChatMessage[] = []
-  ): Promise<{ type: 'message' | 'tool_call'; content?: string; tool_call?: any; message?: string }> {
+  ): Promise<{ type: 'message' | 'tool_call'; content?: string; tool_call?: any; message?: string; schema?: DatabaseSchema }> {
     const response = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
       headers: {
@@ -87,23 +98,50 @@ class AIService {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to chat with AI');
+        const errorText = await response.text();
+        try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(errorJson.error || 'Failed to chat with AI');
+        } catch (e) {
+            throw new Error(`Failed to chat with AI: ${errorText}`);
+        }
     }
 
     const data = await response.json();
-    return data.response;
+    console.log('🌐 Raw API response:', data);
+    console.log('🌐 Response has schema?', !!data.schema);
+    console.log('🌐 Response has content?', !!data.content);
+    
+    // Backend returns either:
+    // 1. { content: "message" } for simple messages
+    // 2. { schema: {...}, content: "message" } for schema modifications
+    // 3. { response: { type: "tool_call", ... } } for tool calls (not currently used)
+    
+    // If there's a schema in the response, include it
+    if (data.schema) {
+      console.log('🌐 Returning response with schema');
+      return {
+        type: 'message',
+        content: data.content,
+        schema: data.schema
+      };
+    }
+    
+    // Otherwise return as a simple message
+    console.log('🌐 Returning simple message response');
+    return {
+      type: 'message',
+      content: data.content || data.message || 'I understand your request.'
+    };
   }
 
   async analyzeSchema(schema: DatabaseSchema): Promise<string> {
-    const response = await fetch(`${API_BASE_URL}/chat`, {
+    const response = await fetch(`${API_BASE_URL}/analyze-schema`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        schema,
-      }),
+      body: JSON.stringify({ schema }),
     });
 
     if (!response.ok) {
@@ -112,7 +150,7 @@ class AIService {
     }
 
     const data = await response.json();
-    return data.analysis;
+    return data.content;
   }
 }
 
