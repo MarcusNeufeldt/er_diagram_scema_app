@@ -341,12 +341,10 @@ ${currentSchema ? JSON.stringify(currentSchema, null, 2) : 'No schema is on the 
         { role: "user", content: userContent }
       ];
 
-      // Use vision model if images are present
-      const modelToUse = (images && images.length > 0) 
-        ? 'anthropic/claude-3.5-sonnet:beta' // Vision-capable model
-        : this.defaultModel;
+      // Use the default model (which supports vision)
+      const modelToUse = this.defaultModel;
 
-      console.log(`🤖 Using model: ${modelToUse} ${images && images.length > 0 ? '(vision mode)' : ''}`);
+      console.log(`🤖 Using model: ${modelToUse} ${images && images.length > 0 ? '(with images)' : ''}`);
 
       // Try with function calling first
       try {
