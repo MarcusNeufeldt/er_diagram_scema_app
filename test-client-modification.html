@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Schema Modification Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        button {
+            background: #004400;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #006600;
+        }
+        .output {
+            background: #000;
+            border: 1px solid #00ff00;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            min-height: 100px;
+        }
+        .schema {
+            background: #002200;
+            border: 1px solid #00ff00;
+            padding: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Schema Modification Client Test</h1>
+        
+        <div class="schema">
+            <h3>Initial Schema:</h3>
+            <pre id="initialSchema"></pre>
+        </div>
+        
+        <button onclick="testModification()">Test Schema Modification</button>
+        <button onclick="testAnalysis()">Test Schema Analysis</button>
+        
+        <div class="output">
+            <h3>Response:</h3>
+            <pre id="output">Click a button to test...</pre>
+        </div>
+        
+        <div class="schema">
+            <h3>Modified Schema:</h3>
+            <pre id="modifiedSchema">No modifications yet...</pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3002/api';
+        
+        const initialSchema = {
+            tables: [
+                {
+                    name: 'users',
+                    columns: [
+                        { name: 'id', type: 'INT', isPrimaryKey: true, isNullable: false },
+                        { name: 'email', type: 'VARCHAR(255)', isPrimaryKey: false, isNullable: false }
+                    ]
+                }
+            ],
+            relationships: []
+        };
+        
+        document.getElementById('initialSchema').textContent = JSON.stringify(initialSchema, null, 2);
+        
+        async function testModification() {
+            const output = document.getElementById('output');
+            const modifiedSchemaEl = document.getElementById('modifiedSchema');
+            
+            output.textContent = '⏳ Testing modification...';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: 'Add first_name, last_name, and phone_number fields to the users table',
+                        currentSchema: initialSchema,
+                        conversationHistory: []
+                    })
+                });
+                
+                const data = await response.json();
+                
+                output.textContent = '📦 Raw Response:\n' + JSON.stringify(data, null, 2);
+                
+                if (data.schema) {
+                    modifiedSchemaEl.textContent = '✅ Schema Modified:\n' + JSON.stringify(data.schema, null, 2);
+                    
+                    // Check if new fields were added
+                    const usersTable = data.schema.tables.find(t => t.name === 'users');
+                    if (usersTable) {
+                        const hasNewFields = 
+                            usersTable.columns.some(c => c.name === 'first_name') &&
+                            usersTable.columns.some(c => c.name === 'last_name') &&
+                            usersTable.columns.some(c => c.name === 'phone_number');
+                        
+                        if (hasNewFields) {
+                            output.textContent += '\n\n✅ SUCCESS: New fields were added!';
+                        } else {
+                            output.textContent += '\n\n❌ FAILURE: New fields were NOT added!';
+                        }
+                    }
+                } else {
+                    modifiedSchemaEl.textContent = '❌ No schema in response!';
+                }
+                
+                if (data.content) {
+                    output.textContent += '\n\n💬 Message: ' + data.content;
+                }
+                
+            } catch (error) {
+                output.textContent = '❌ Error: ' + error.message;
+            }
+        }
+        
+        async function testAnalysis() {
+            const output = document.getElementById('output');
+            
+            output.textContent = '⏳ Testing analysis...';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/analyze-schema`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        schema: initialSchema
+                    })
+                });
+                
+                const data = await response.json();
+                
+                output.textContent = '📊 Analysis Response:\n' + JSON.stringify(data, null, 2);
+                
+                if (data.content) {
+                    output.textContent += '\n\n📝 Analysis:\n' + data.content;
+                }
+                
+            } catch (error) {
+                output.textContent = '❌ Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

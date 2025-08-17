@@ -154,3 +154,68 @@ When a diagram gets complex, it can be hard to trace the lines.
 **The application is in an excellent state for your team's use case.** The core collaborative loop is solid, safe, and intuitive. The "check-out" model is a very smart choice that provides 90% of the benefit of real-time collaboration with only 10% of the complexity.
 
 The refinements suggested above are "version 2.1" improvements. You should feel confident deploying and using "version 2.0" as it is today. The foundation is incredibly strong.
+
+That's a fantastic question that gets right to the heart of collaborative UX design. You're thinking about the human side of the interaction, which is crucial.
+
+Let's break down your two questions.
+
+### 1. "Does the read-only mode get reflected on the UI?"
+
+**Yes, and you've already implemented this perfectly.** This is one of the strengths of your current system.
+
+Here's how it's reflected, based on your code:
+
+1.  **The Banner (`ReadOnlyBanner.tsx`):** This is the most explicit and important piece of feedback. The yellow banner at the top clearly states `"Viewing in read-only mode. [User Name] is currently editing."` This immediately sets the user's expectations.
+2.  **Disabled Controls (`ToolbarClean.tsx` & `Canvas.tsx`):** You've correctly plumbed the `isReadOnly` state from your Zustand store into your components. This disables all editing buttons on the toolbar and prevents interactions like double-clicking the canvas to create a table.
+3.  **Visual Cues (Implicit):** The cursor will not change to a "pointer" on interactive elements, and UI elements will have the `disabled:opacity-50` and `disabled:cursor-not-allowed` styles, providing subtle but constant feedback that the diagram is not editable.
+
+**Verdict:** Your current implementation of reflecting read-only mode is excellent. It's clear, consistent, and prevents user confusion.
+
+---
+
+### 2. "Should a user be able to request to unlock?"
+
+This is a brilliant idea, and it moves your application from a "passive" locking system to an "active" collaborative one. It doesn't necessarily make things too complicated, but it does add a new layer. Let's analyze the trade-offs.
+
+#### The "Request to Edit" Feature
+
+**User Story:**
+1.  Ben opens a diagram and sees the banner: `"Alex is currently editing."`
+2.  Next to the banner text, there is a new button: **"Request Edit Access"**.
+3.  Ben clicks it.
+4.  Alex, who is actively editing, sees a small, non-intrusive notification pop up: **"Ben would like to edit this diagram. [Grant Access]"**
+5.  If Alex clicks "Grant Access," his client calls the `unlock` API endpoint, releasing his lock.
+6.  Ben's client (which could be polling the lock status) sees the diagram is now free, automatically acquires the lock, and the banner disappears. He can now edit.
+
+#### Is it too complicated? Let's break it down.
+
+**Technical Complexity: Medium-Low**
+This doesn't require WebSockets. You can build this entirely with your existing REST API and some smart client-side polling.
+
+*   **Database:** You'd add a new column to your `Diagrams` table: `edit_request_by_user_id TEXT`.
+*   **API:**
+    *   `POST /api/diagrams/{id}/request-edit`: Sets the `edit_request_by_user_id`.
+    *   `GET /api/diagrams/{id}/status`: A new, lightweight endpoint that clients can poll frequently (e.g., every 5 seconds). It would return the current `lockedByUserId` AND the `edit_request_by_user_id`.
+*   **Frontend:**
+    *   The read-only user's client shows the "Request" button. Clicking it calls the new API endpoint.
+    *   The editing user's client polls the `/status` endpoint. If it sees an `edit_request_by_user_id`, it shows the notification. Clicking "Grant Access" calls the `unlock` endpoint.
+
+**UX Complexity: The Human Factor**
+
+This is where the real consideration lies.
+
+*   **The Pro:** It's much more collaborative. Ben doesn't have to ping Alex on Slack. It keeps the communication within the app and makes the hand-off process smoother and faster. It feels more like a "team" tool.
+*   **The Con:** What if Alex is in the middle of a complex change and ignores the request? Ben is left waiting. What if Alex accidentally clicks "Grant" when he didn't mean to? This introduces social dynamics into the workflow.
+
+### Recommendation
+
+For your initial 5-person team, **you probably don't need this on day one, but it is the single best "next feature" to add to your collaboration model.**
+
+**Phased Approach:**
+
+1.  **Launch (v1.0):** Use the current "passive" locking system you've already built. It is robust, simple, and 100% effective at preventing data loss. Let your team use it for a week or two.
+2.  **Gather Feedback (v1.1):** Ask your data engineers: "Was there ever a time you were blocked by someone and wished you could ask them for control directly within the app?"
+3.  **Implement "Request to Edit" (v1.2):** If the answer is "yes," then implement the feature described above. By waiting, you'll have a better understanding of your team's actual workflow and can design the feature to solve a proven pain point.
+
+**Final Answer:**
+The idea is **not too complicated** from a technical standpoint and is a fantastic feature. However, to maintain your "low friction" goal, it's best to launch with the simpler passive system first and add this as a fast-follow improvement based on real user feedback. This ensures you're not adding complexity before it's truly needed.
