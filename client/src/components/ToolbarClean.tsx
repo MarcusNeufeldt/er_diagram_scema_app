@@ -106,7 +106,7 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
   };
 
   const handleExportSQL = () => {
-    const sql = SQLGenerator.generateSQL(nodes);
+    const sql = SQLGenerator.generateDDL(nodes);
     const blob = new Blob([sql], { type: 'text/sql' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
