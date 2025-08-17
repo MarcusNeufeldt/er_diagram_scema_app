@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:4000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 export interface DatabaseSchema {
   tables: Table[];
@@ -46,7 +46,7 @@ export interface ChatMessage {
 
 class AIService {
   async generateSchema(prompt: string, existingSchema?: DatabaseSchema): Promise<DatabaseSchema> {
-    const response = await fetch(`${API_BASE_URL}/ai/generate-schema`, {
+    const response = await fetch(`${API_BASE_URL}/generate-schema`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -71,7 +71,7 @@ class AIService {
     currentSchema?: DatabaseSchema,
     conversationHistory: ChatMessage[] = []
   ): Promise<{ type: 'message' | 'tool_call'; content?: string; tool_call?: any; message?: string }> {
-    const response = await fetch(`${API_BASE_URL}/ai/chat`, {
+    const response = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -96,7 +96,7 @@ class AIService {
   }
 
   async analyzeSchema(schema: DatabaseSchema): Promise<string> {
-    const response = await fetch(`${API_BASE_URL}/ai/analyze-schema`, {
+    const response = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

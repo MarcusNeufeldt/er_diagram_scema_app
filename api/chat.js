@@ -1,4 +1,4 @@
-const AIService = require('../server/ai-service');
+const AIService = require('./ai-service');
 
 const aiService = new AIService();
 
