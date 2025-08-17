@@ -8,13 +8,13 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { message, context } = req.body;
+    const { message, currentSchema, conversationHistory } = req.body;
     console.log('💬 Processing chat message');
     
-    const response = await aiService.chat(message, context);
+    const response = await aiService.chatAboutSchema(message, currentSchema, conversationHistory || []);
     console.log('✅ Chat response generated');
     
-    res.json({ response });
+    res.json(response);
   } catch (error) {
     console.error('❌ Chat failed:', error.message);
     res.status(500).json({ 
