@@ -52,7 +52,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
   };
 
   const deleteDiagram = async (diagramId: string, diagramName: string) => {
-    if (!confirm(`Are you sure you want to delete "${diagramName}"? This action cannot be undone.`)) {
+    if (!window.confirm(`Are you sure you want to delete "${diagramName}"? This action cannot be undone.`)) {
       return;
     }
 
