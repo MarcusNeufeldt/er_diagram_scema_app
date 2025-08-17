@@ -59,22 +59,26 @@ module.exports = async (req, res) => {
       });
       
     } else if (req.method === 'POST') {
-      const { message, currentSchema } = req.body;
+      const { message, currentSchema, images } = req.body;
       
-      if (!message || !message.trim()) {
-        return res.status(400).json({ error: 'Message is required' });
+      if ((!message || !message.trim()) && (!images || images.length === 0)) {
+        return res.status(400).json({ error: 'Message or images are required' });
       }
       
       console.log(`💬 Processing new chat message for diagram: ${diagramId}`);
-      console.log(`📝 Message: ${message.substring(0, 100)}...`);
+      console.log(`📝 Message: ${message ? message.substring(0, 100) + '...' : '[Image only]'}`);
+      if (images && images.length > 0) {
+        console.log(`🖼️ Images attached: ${images.length}`);
+      }
       
       const now = new Date().toISOString();
       const userMessageId = generateId();
       
-      // 1. Save the user's message
+      // 1. Save the user's message (with image indicator if present)
+      const messageToSave = message + (images && images.length > 0 ? ` [User attached ${images.length} image(s)]` : '');
       await client.execute({
         sql: 'INSERT INTO ChatMessage (id, diagramId, role, content, createdAt) VALUES (?, ?, ?, ?, ?)',
-        args: [userMessageId, diagramId, 'user', message, now]
+        args: [userMessageId, diagramId, 'user', messageToSave, now]
       });
       
       console.log('💾 User message saved to database');
@@ -95,7 +99,7 @@ module.exports = async (req, res) => {
       
       // 3. Call the AI service with full context
       const aiService = new AIService();
-      const aiResponse = await aiService.chatAboutSchema(message, currentSchema, conversationHistory);
+      const aiResponse = await aiService.chatAboutSchema(message, currentSchema, conversationHistory, images);
       
       console.log('🤖 AI response received');
       console.log('🔍 Response type:', aiResponse.type);
@@ -127,7 +131,9 @@ module.exports = async (req, res) => {
           console.log('⚙️ Generation args:', args);
           const schema = await aiService.generateSchema(args.description);
           console.log('✅ Generated schema tables count:', schema?.tables?.length || 0);
-          responseContent = 'I\'ve generated a new database schema for you.';
+          // Include more context about what was created
+          const tableNames = schema?.tables?.map(t => t.name).join(', ') || '';
+          responseContent = `I've successfully analyzed your image and generated a database schema based on what I saw. The schema includes ${schema?.tables?.length || 0} tables: ${tableNames}. This was created from the image you provided showing ${args.description}.`;
           finalResponse = { schema, content: responseContent };
         } else if (toolCall.function.name === 'modify_existing_schema') {
           console.log('🔄 Executing schema modification');

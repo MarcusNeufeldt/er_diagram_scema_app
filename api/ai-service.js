@@ -286,11 +286,16 @@ Respond ONLY with valid JSON matching the required schema format. Do not include
   }
 
   // Chat with AI about the schema (with function calling)
-  async chatAboutSchema(userMessage, currentSchema = null, conversationHistory = []) {
+  async chatAboutSchema(userMessage, currentSchema = null, conversationHistory = [], images = []) {
     try {
+      // Check if any previous messages mention images
+      const conversationMentionsImages = conversationHistory.some(msg => 
+        msg.content && msg.content.includes('[User attached') && msg.content.includes('image(s)]')
+      );
+      
       const systemPrompt = `You are an expert AI assistant embedded within a **visual, web-based database diagramming tool**. Your name is "Data Modeler AI".
 
-Your primary role is to help users design and modify database schemas by interacting with a visual canvas.
+Your primary role is to help users design and modify database schemas by interacting with a visual canvas.${(images && images.length > 0) || conversationMentionsImages ? ' You have vision capabilities and can analyze images. You may have already analyzed images in this conversation.' : ''}
 
 **Key Concepts of Your Environment:**
 - The user is looking at an interactive **canvas**.
@@ -311,16 +316,42 @@ You have access to these tools:
 Current schema on the canvas:
 ${currentSchema ? JSON.stringify(currentSchema, null, 2) : 'No schema is on the canvas yet.'}`;
 
+      // Construct user message with images if provided
+      let userContent = userMessage;
+      if (images && images.length > 0) {
+        // Use multimodal format when images are present
+        userContent = [
+          { type: "text", text: userMessage || "Please analyze these images." }
+        ];
+        
+        // Add images to content array
+        images.forEach(imageDataUrl => {
+          userContent.push({
+            type: "image_url",
+            image_url: {
+              url: imageDataUrl
+            }
+          });
+        });
+      }
+
       const messages = [
         { role: "system", content: systemPrompt },
         ...conversationHistory,
-        { role: "user", content: userMessage }
+        { role: "user", content: userContent }
       ];
+
+      // Use vision model if images are present
+      const modelToUse = (images && images.length > 0) 
+        ? 'anthropic/claude-3.5-sonnet:beta' // Vision-capable model
+        : this.defaultModel;
+
+      console.log(`🤖 Using model: ${modelToUse} ${images && images.length > 0 ? '(vision mode)' : ''}`);
 
       // Try with function calling first
       try {
         const response = await axios.post(`${this.baseURL}/chat/completions`, {
-          model: this.defaultModel,
+          model: modelToUse,
           messages: messages,
           tools: this.getAvailableTools(),
           tool_choice: "auto",

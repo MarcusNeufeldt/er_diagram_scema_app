@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, RefreshCw, RotateCcw } from 'lucide-react';
+import { Send, Bot, User, Sparkles, RefreshCw, RotateCcw, Paperclip, X } from 'lucide-react';
 import { aiService, ChatMessage, DatabaseSchema } from '../services/aiService';
 import { useDiagramStore } from '../stores/diagramStore';
 
@@ -13,7 +13,9 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<Array<{file: File, preview: string}>>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { 
     nodes, 
     edges, 
@@ -516,17 +518,19 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
   };
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isLoading || !currentDiagramId) return;
+    if ((!inputMessage.trim() && uploadedImages.length === 0) || isLoading || !currentDiagramId) return;
 
     const userMessage: ChatMessage = {
       role: 'user',
-      content: inputMessage,
+      content: inputMessage + (uploadedImages.length > 0 ? ` [${uploadedImages.length} image(s) attached]` : ''),
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMessage]);
     const currentInput = inputMessage;
+    const currentImages = uploadedImages;
     setInputMessage('');
+    setUploadedImages([]);
     setIsLoading(true);
 
     try {
@@ -534,12 +538,19 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
       console.log('🎯 Sending message to AI via stateful chat:', currentInput);
       console.log('📊 Current schema:', currentSchema);
       console.log('📍 Diagram ID:', currentDiagramId);
+      console.log('🖼️ Images attached:', currentImages.length);
       
-      // Use the new stateful chat endpoint
+      // Convert images to base64 for API
+      const imageDataUrls = await Promise.all(
+        currentImages.map(img => convertImageToBase64(img.file))
+      );
+      
+      // Use the new stateful chat endpoint with images
       const response = await aiService.postChatMessage(
         currentDiagramId,
         currentInput,
-        currentSchema
+        currentSchema,
+        imageDataUrls
       );
       
       console.log('📦 Response from stateful chat:', response);
@@ -807,6 +818,58 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
     }
   };
 
+  // Image handling functions
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const preview = event.target?.result as string;
+          setUploadedImages(prev => [...prev, { file, preview }]);
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Reset file input
+    e.target.value = '';
+  };
+
+  const handleImagePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    Array.from(items).forEach(item => {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const preview = event.target?.result as string;
+            setUploadedImages(prev => [...prev, { file, preview }]);
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    });
+  };
+
+  const removeImage = (index: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const convertImageToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const quickActions = [
     {
       label: 'Generate Blog Schema',
@@ -938,26 +1001,71 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({ isOpen, onClose }) => 
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Uploaded Images Preview */}
+      {uploadedImages.length > 0 && (
+        <div className="px-4 py-2 border-t border-gray-200 bg-gray-50">
+          <div className="flex flex-wrap gap-2">
+            {uploadedImages.map((image, index) => (
+              <div key={index} className="relative">
+                <img
+                  src={image.preview}
+                  alt={`Upload ${index + 1}`}
+                  className="w-16 h-16 object-cover rounded-lg border border-gray-300"
+                />
+                <button
+                  onClick={() => removeImage(index)}
+                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                  disabled={isLoading}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="p-4 border-t border-gray-200">
         <div className="flex space-x-2">
-          <textarea
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyDown={handleKeyPress}
-            placeholder={isReadOnly ? "AI Assistant is disabled in read-only mode" : "Ask me about database design, generate schemas, or get suggestions..."}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            rows={2}
-            disabled={isLoading || isReadOnly}
-          />
+          <div className="flex-1 relative">
+            <textarea
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={handleKeyPress}
+              onPaste={handleImagePaste}
+              placeholder={isReadOnly ? "AI Assistant is disabled in read-only mode" : "Ask me about database design, generate schemas, or get suggestions..."}
+              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              rows={2}
+              disabled={isLoading || isReadOnly}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading || isReadOnly}
+              className="absolute right-2 top-2 p-1 text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Upload image"
+            >
+              <Paperclip size={16} />
+            </button>
+          </div>
           <button
             onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || isLoading || isReadOnly}
+            disabled={(!inputMessage.trim() && uploadedImages.length === 0) || isLoading || isReadOnly}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send size={16} />
           </button>
         </div>
+        
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleImageUpload}
+          className="hidden"
+        />
       </div>
     </div>
   );
