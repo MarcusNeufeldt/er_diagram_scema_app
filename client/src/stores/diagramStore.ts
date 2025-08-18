@@ -1177,6 +1177,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
       id: `shape-${Date.now()}`,
       type: shapeType,
       title: '',
+      text: '',
       color: '#f3f4f6',
       borderColor: '#6b7280',
       width: shapeType === 'circle' ? 200 : 250,
