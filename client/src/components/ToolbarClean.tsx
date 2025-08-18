@@ -2,8 +2,9 @@ import React, { useRef, useEffect } from 'react';
 import { 
   Plus, Download, Upload, Save, Undo, Redo, Bot, Layout, 
   Grid3x3, StickyNote, Square, Circle, Diamond, ChevronDown,
-  FileText, Shapes, Settings, Eye, Maximize2
+  FileText, Shapes, Settings, Eye, Maximize2, Focus
 } from 'lucide-react';
+import { useReactFlow } from 'reactflow';
 import { useDiagramStore } from '../stores/diagramStore';
 import { SQLParser, SQLGenerator } from '../lib/sqlParser';
 import { userService } from '../services/userService';
@@ -39,6 +40,8 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
     setShowShapeMenu,
     setShowViewMenu
   } = useDiagramStore();
+  
+  const { fitView } = useReactFlow();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileMenuRef = useRef<HTMLDivElement>(null);
@@ -82,6 +85,14 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
   const handleAutoLayout = () => {
     autoLayout();
     setShowViewMenu(false);
+  };
+
+  const handleFitView = () => {
+    fitView({ 
+      padding: 0.1,  // 10% padding around all nodes
+      duration: 800  // Smooth animation
+    });
+    addNotification('success', 'Fitted all tables in view');
   };
 
   const handleAddStickyNote = () => {
@@ -216,7 +227,7 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         return;
       }
 
-      addNotification('info', 'Exporting current view as full diagram. Tip: Use the fit view button (⌘+Shift+F) to show all tables first!');
+      addNotification('info', 'Exporting current view as full diagram. Tip: Use the green "Fit View" button to show all tables first!');
       
       await exportFullDiagramAsPNG(nodes, 'full-diagram.png');
       
@@ -293,6 +304,16 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         >
           <Plus size={16} />
           <span className="text-sm">Add Table</span>
+        </button>
+
+        {/* Fit View Button */}
+        <button
+          onClick={handleFitView}
+          className="flex items-center space-x-1 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+          title="Fit all tables in view (⌘+Shift+F)"
+        >
+          <Focus size={16} />
+          <span className="text-sm">Fit View</span>
         </button>
 
         {/* File Menu */}
