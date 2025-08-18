@@ -95,8 +95,42 @@ export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
     borderColor: data.borderColor || (selected ? '#3b82f6' : '#d1d5db'),
   };
 
+  // Calculate header and footer colors based on table background
+  const getHeaderFooterStyle = (isFooter = false) => {
+    const bgColor = data.backgroundColor || '#ffffff';
+    // If it's a light color, darken it slightly for header/footer
+    // If no custom color, use default gray
+    if (bgColor === '#ffffff') {
+      return { backgroundColor: isFooter ? '#f9fafb' : '#f3f4f6' };
+    }
+    
+    // For colored backgrounds, make header/footer slightly darker
+    const rgb = hexToRgb(bgColor);
+    if (rgb) {
+      const darkenFactor = isFooter ? 0.95 : 0.9;
+      const darkerRgb = {
+        r: Math.floor(rgb.r * darkenFactor),
+        g: Math.floor(rgb.g * darkenFactor),
+        b: Math.floor(rgb.b * darkenFactor)
+      };
+      return { backgroundColor: `rgb(${darkerRgb.r}, ${darkerRgb.g}, ${darkerRgb.b})` };
+    }
+    
+    return { backgroundColor: isFooter ? '#f9fafb' : '#f3f4f6' };
+  };
+
+  // Helper function to convert hex to RGB
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  };
+
   return (
-    <>
+    <div>
       <div
         className={`border-2 rounded-lg shadow-lg min-w-[250px] transition-all duration-300 ${
           selected ? 'border-blue-500' : ''
@@ -108,7 +142,7 @@ export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
         onContextMenu={handleContextMenu}
       >
         {/* Table Header */}
-        <div className="bg-gray-100 px-4 py-2 rounded-t-lg border-b relative">
+        <div className="px-4 py-2 rounded-t-lg border-b relative" style={getHeaderFooterStyle()}>
           <div className="flex items-center justify-between">
             <div className="flex-1">
               {isRenaming ? (
@@ -209,7 +243,7 @@ export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
 
       {/* Indexes and Foreign Keys info */}
       {(data.indexes.length > 0 || data.foreignKeys.length > 0) && (
-        <div className="px-4 py-2 bg-gray-50 rounded-b-lg text-xs text-gray-600">
+        <div className="px-4 py-2 rounded-b-lg text-xs text-gray-600" style={getHeaderFooterStyle(true)}>
           {data.indexes.length > 0 && (
             <div>Indexes: {data.indexes.length}</div>
           )}
@@ -231,6 +265,6 @@ export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
           onDuplicate={handleDuplicate}
         />
       )}
-    </>
+    </div>
   );
 };

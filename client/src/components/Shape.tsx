@@ -209,7 +209,7 @@ export const Shape: React.FC<ShapeProps> = ({ data, selected }) => {
   };
 
   return (
-    <>
+    <div>
       <NodeResizer 
         color="#3b82f6"
         isVisible={selected}
@@ -307,6 +307,6 @@ export const Shape: React.FC<ShapeProps> = ({ data, selected }) => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
