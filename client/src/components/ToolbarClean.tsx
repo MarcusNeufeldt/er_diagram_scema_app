@@ -216,14 +216,14 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         return;
       }
 
-      addNotification('info', 'Exporting full diagram...');
+      addNotification('info', 'Exporting current view as full diagram. Tip: Use the fit view button (⌘+Shift+F) to show all tables first!');
       
       await exportFullDiagramAsPNG(nodes, 'full-diagram.png');
       
-      addNotification('success', 'Full diagram exported successfully');
+      addNotification('success', 'Diagram exported successfully');
     } catch (error) {
       console.error('Full diagram export error:', error);
-      addNotification('error', 'Failed to export full diagram');
+      addNotification('error', 'Failed to export diagram');
     } finally {
       setShowFileMenu(false);
     }
@@ -344,14 +344,14 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
                 className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center space-x-2"
               >
                 <Eye size={14} />
-                <span>Export Current View</span>
+                <span>Export PNG (Current View)</span>
               </button>
               <button
                 onClick={handleExportFullDiagram}
                 className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center space-x-2"
               >
                 <Maximize2 size={14} />
-                <span>Export Full Diagram</span>
+                <span>Export PNG (Fit All Tables)</span>
               </button>
             </div>
           )}
