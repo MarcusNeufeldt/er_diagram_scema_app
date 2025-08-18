@@ -10,6 +10,7 @@ export interface Table {
   description?: string;
   columns: Column[];
   indexes?: Index[];
+  compositePrimaryKey?: string[];
 }
 
 export interface Column {
@@ -17,6 +18,9 @@ export interface Column {
   type: string;
   isPrimaryKey: boolean;
   isNullable: boolean;
+  isUnique?: boolean;
+  hasIndex?: boolean;
+  checkConstraint?: string;
   defaultValue?: string;
   description?: string;
 }
@@ -25,6 +29,7 @@ export interface Index {
   name: string;
   columns: string[];
   unique: boolean;
+  type?: 'btree' | 'hash' | 'gin' | 'gist';
 }
 
 export interface Relationship {
