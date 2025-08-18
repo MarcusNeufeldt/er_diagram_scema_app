@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Dashboard } from './Dashboard';
 import { DiagramView } from './DiagramView';
+import NotificationSystem from './NotificationSystem';
 
 export const AppRouter: React.FC = () => {
   const handleCreateDiagram = () => {
@@ -26,6 +27,7 @@ export const AppRouter: React.FC = () => {
           element={<Dashboard onCreateDiagram={handleCreateDiagram} />} 
         />
       </Routes>
+      <NotificationSystem />
     </Router>
   );
 };

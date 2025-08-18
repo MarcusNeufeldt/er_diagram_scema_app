@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { 
   Plus, Download, Upload, Save, Undo, Redo, Bot, Layout, 
   Grid3x3, StickyNote, Square, Circle, Diamond, ChevronDown,
@@ -7,6 +7,7 @@ import {
 import { useDiagramStore } from '../stores/diagramStore';
 import { SQLParser, SQLGenerator } from '../lib/sqlParser';
 import { userService } from '../services/userService';
+import { LockStatusIndicator } from './LockStatusIndicator';
 
 interface ToolbarProps {
   onOpenAIChat: () => void;
@@ -28,13 +29,50 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
     addStickyNote,
     addShape,
     isReadOnly,
-    currentDiagramId
+    currentDiagramId,
+    addNotification,
+    showFileMenu,
+    showShapeMenu,
+    showViewMenu,
+    setShowFileMenu,
+    setShowShapeMenu,
+    setShowViewMenu
   } = useDiagramStore();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [showFileMenu, setShowFileMenu] = useState(false);
-  const [showShapeMenu, setShowShapeMenu] = useState(false);
-  const [showViewMenu, setShowViewMenu] = useState(false);
+  const fileMenuRef = useRef<HTMLDivElement>(null);
+  const shapeMenuRef = useRef<HTMLDivElement>(null);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      
+      // Check if click is outside file menu
+      if (showFileMenu && fileMenuRef.current && !fileMenuRef.current.contains(target)) {
+        setShowFileMenu(false);
+      }
+      
+      // Check if click is outside shape menu
+      if (showShapeMenu && shapeMenuRef.current && !shapeMenuRef.current.contains(target)) {
+        setShowShapeMenu(false);
+      }
+      
+      // Check if click is outside view menu
+      if (showViewMenu && viewMenuRef.current && !viewMenuRef.current.contains(target)) {
+        setShowViewMenu(false);
+      }
+    };
+
+    // Add event listener
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showFileMenu, showShapeMenu, showViewMenu, setShowFileMenu, setShowShapeMenu, setShowViewMenu]);
 
   const handleAddTable = () => {
     addTable({ x: 400, y: 200 });
@@ -57,22 +95,25 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
 
   const handleSave = async () => {
     if (!currentDiagramId) {
-      console.warn('No diagram ID available for saving');
+      addNotification('warning', 'No diagram ID available for saving');
       return;
     }
 
     const currentUser = userService.getCurrentUser();
     if (!currentUser) {
-      alert('You must be logged in to save');
+      addNotification('warning', 'You must be logged in to save');
       return;
     }
 
     if (isReadOnly) {
-      alert('Cannot save in read-only mode');
+      addNotification('warning', 'Cannot save in read-only mode');
       return;
     }
 
     try {
+      // Show saving notification
+      addNotification('info', 'Saving diagram...', 1000);
+      
       const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       
       const response = await fetch(`${API_BASE_URL}/diagram?id=${currentDiagramId}`, {
@@ -91,16 +132,16 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        console.log('✅ Diagram saved successfully');
+        addNotification('success', '✅ Diagram saved successfully!');
       } else if (response.status === 403) {
-        alert(result.message || 'Your editing session has expired. Please reload to get the latest version.');
+        addNotification('error', result.message || 'Your editing session has expired. Please reload to get the latest version.');
       } else {
         console.error('Save failed:', result.message);
-        alert('Failed to save diagram: ' + result.message);
+        addNotification('error', 'Failed to save diagram: ' + result.message);
       }
     } catch (error) {
       console.error('Save error:', error);
-      alert('Failed to save diagram');
+      addNotification('error', 'Failed to save diagram. Please try again.');
     }
     setShowFileMenu(false);
   };
@@ -212,7 +253,7 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         </button>
 
         {/* File Menu */}
-        <div className="relative">
+        <div className="relative" ref={fileMenuRef}>
           <button
             onClick={() => setShowFileMenu(!showFileMenu)}
             className="flex items-center space-x-1 px-3 py-1.5 text-gray-700 hover:bg-gray-100 rounded transition-colors"
@@ -260,7 +301,7 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         </div>
 
         {/* Shapes Menu */}
-        <div className="relative">
+        <div className="relative" ref={shapeMenuRef}>
           <button
             onClick={() => setShowShapeMenu(!showShapeMenu)}
             disabled={isReadOnly}
@@ -307,7 +348,7 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         </div>
 
         {/* View Menu */}
-        <div className="relative">
+        <div className="relative" ref={viewMenuRef}>
           <button
             onClick={() => setShowViewMenu(!showViewMenu)}
             className="flex items-center space-x-1 px-3 py-1.5 text-gray-700 hover:bg-gray-100 rounded transition-colors"
@@ -343,6 +384,9 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
 
       {/* Right side actions */}
       <div className="flex items-center space-x-2">
+        {/* Lock Status Indicator */}
+        <LockStatusIndicator />
+        
         {/* Undo/Redo */}
         <div className="flex items-center space-x-1 border-r border-gray-300 pr-2">
           <button

@@ -13,6 +13,131 @@ function generateId() {
   return 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 }
 
+// Non-destructive schema modification function
+function computeFinalSchemaState(currentSchema, newSchema) {
+  console.log('🔄 Computing final schema state non-destructively');
+  console.log('📊 Current schema tables:', currentSchema?.tables?.length || 0);
+  console.log('📊 New schema tables:', newSchema?.tables?.length || 0);
+  
+  if (!currentSchema || !currentSchema.tables) {
+    console.log('📋 No current schema - returning new schema as-is');
+    return newSchema;
+  }
+  
+  if (!newSchema || !newSchema.tables) {
+    console.log('📋 No new schema - returning current schema as-is');
+    return currentSchema;
+  }
+  
+  // Create lookup maps for efficient comparison
+  const currentTables = new Map(currentSchema.tables.map(t => [t.name, t]));
+  const newTables = new Map(newSchema.tables.map(t => [t.name, t]));
+  
+  const finalTables = [];
+  
+  // Process all tables from new schema
+  newSchema.tables.forEach(newTable => {
+    const currentTable = currentTables.get(newTable.name);
+    
+    if (currentTable) {
+      // Table exists - merge columns while preserving existing column properties
+      console.log(`🔧 Merging table: ${newTable.name}`);
+      
+      const existingColumns = new Map(currentTable.columns.map(col => [col.name, col]));
+      const finalColumns = newTable.columns.map(newCol => {
+        const existingCol = existingColumns.get(newCol.name);
+        
+        if (existingCol) {
+          // Preserve existing column but update properties from new schema
+          console.log(`  ↻ Updating column: ${newCol.name}`);
+          return {
+            ...existingCol, // Keep existing properties like id, references, etc.
+            type: newCol.type,
+            isPrimaryKey: newCol.isPrimaryKey,
+            isNullable: newCol.isNullable,
+            defaultValue: newCol.defaultValue,
+            description: newCol.description
+          };
+        } else {
+          // New column
+          console.log(`  + Adding column: ${newCol.name}`);
+          return {
+            id: `col-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            ...newCol,
+            isForeignKey: false,
+            references: undefined
+          };
+        }
+      });
+      
+      finalTables.push({
+        ...currentTable, // Preserve existing table properties
+        ...newTable, // Update with new table properties
+        columns: finalColumns
+      });
+    } else {
+      // New table
+      console.log(`+ Adding new table: ${newTable.name}`);
+      finalTables.push({
+        ...newTable,
+        columns: newTable.columns.map(col => ({
+          id: `col-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          ...col,
+          isForeignKey: false,
+          references: undefined
+        }))
+      });
+    }
+  });
+  
+  // Handle relationships - preserve existing ones that are still valid
+  const currentRelationshipKeys = new Set(
+    (currentSchema.relationships || []).map(rel => 
+      `${rel.sourceTable}.${rel.sourceColumn}->${rel.targetTable}.${rel.targetColumn}`
+    )
+  );
+  
+  const newRelationshipKeys = new Set(
+    (newSchema.relationships || []).map(rel => 
+      `${rel.sourceTable}.${rel.sourceColumn}->${rel.targetTable}.${rel.targetColumn}`
+    )
+  );
+  
+  const finalRelationships = [];
+  
+  // Preserve existing relationships that are still present in new schema
+  (currentSchema.relationships || []).forEach(rel => {
+    const key = `${rel.sourceTable}.${rel.sourceColumn}->${rel.targetTable}.${rel.targetColumn}`;
+    if (newRelationshipKeys.has(key)) {
+      console.log(`↻ Preserving relationship: ${key}`);
+      finalRelationships.push(rel);
+    } else {
+      console.log(`- Removing relationship: ${key}`);
+    }
+  });
+  
+  // Add new relationships
+  (newSchema.relationships || []).forEach(rel => {
+    const key = `${rel.sourceTable}.${rel.sourceColumn}->${rel.targetTable}.${rel.targetColumn}`;
+    if (!currentRelationshipKeys.has(key)) {
+      console.log(`+ Adding new relationship: ${key}`);
+      finalRelationships.push(rel);
+    }
+  });
+  
+  const finalSchema = {
+    tables: finalTables,
+    relationships: finalRelationships
+  };
+  
+  console.log('✅ Final schema computed:', {
+    tables: finalSchema.tables.length,
+    relationships: finalSchema.relationships.length
+  });
+  
+  return finalSchema;
+}
+
 // Main function that handles all API routes
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -156,10 +281,16 @@ module.exports = async (req, res) => {
             const schema = await aiService.generateSchema(args.description);
             return res.json({ schema, content: 'I\'ve generated a new database schema for you.' });
           } else if (toolCall.function.name === 'modify_existing_schema') {
-            console.log('🔄 Executing schema modification');
+            console.log('🔄 Executing schema modification (non-destructive)');
             const args = JSON.parse(toolCall.function.arguments);
-            const modifiedSchema = await aiService.generateSchema(args.description, currentSchema);
-            return res.json({ schema: modifiedSchema, content: 'I\'ve modified your database schema.' });
+            
+            // Generate the AI's proposed schema
+            const aiGeneratedSchema = await aiService.generateSchema(args.description, currentSchema);
+            
+            // Use non-destructive merging to preserve existing relationships and IDs
+            const finalSchema = computeFinalSchemaState(currentSchema, aiGeneratedSchema);
+            
+            return res.json({ schema: finalSchema, content: 'I\'ve modified your database schema.' });
           } else {
             console.log('❓ Unknown tool call, using fallback');
             return res.json({ content: response.message || 'I understand your request, but I need more information to proceed.' });
@@ -492,7 +623,7 @@ module.exports = async (req, res) => {
 
         // Case 1: No lock or expired lock - grant the lock
         if (!diagram.lockedByUserId || isLockExpired) {
-          const newLockExpiry = new Date(now.getTime() + 5 * 60 * 1000).toISOString();
+          const newLockExpiry = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
           
           await client.execute({
             sql: 'UPDATE Diagram SET lockedByUserId = ?, lockExpiresAt = ? WHERE id = ?',
@@ -504,7 +635,7 @@ module.exports = async (req, res) => {
 
         // Case 2: Current user already has the lock - extend it (heartbeat)
         if (diagram.lockedByUserId === userId) {
-          const newLockExpiry = new Date(now.getTime() + 5 * 60 * 1000).toISOString();
+          const newLockExpiry = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
           
           await client.execute({
             sql: 'UPDATE Diagram SET lockExpiresAt = ? WHERE id = ?',
@@ -647,14 +778,14 @@ module.exports = async (req, res) => {
         
         console.log('💾 User message saved to database');
         
-        // 2. Fetch the recent conversation history for context (last 15 messages)
+        // 2. Fetch the complete conversation history for full context
         const historyResult = await client.execute({
-          sql: 'SELECT role, content FROM ChatMessage WHERE diagramId = ? ORDER BY createdAt DESC LIMIT 15',
+          sql: 'SELECT role, content FROM ChatMessage WHERE diagramId = ? ORDER BY createdAt ASC',
           args: [diagramId]
         });
         
-        // Reverse to get chronological order for AI context
-        const conversationHistory = historyResult.rows.reverse().map(row => ({
+        // Get full conversation history in chronological order for AI context
+        const conversationHistory = historyResult.rows.map(row => ({
           role: row.role,
           content: row.content
         }));
@@ -700,14 +831,22 @@ module.exports = async (req, res) => {
             responseContent = `I've successfully analyzed your image and generated a database schema based on what I saw. The schema includes ${schema?.tables?.length || 0} tables: ${tableNames}. This was created from the image you provided showing ${args.description}.`;
             finalResponse = { schema, content: responseContent };
           } else if (toolCall.function.name === 'modify_existing_schema') {
-            console.log('🔄 Executing schema modification');
+            console.log('🔄 Executing schema modification (non-destructive)');
             // Execute schema modification
             const args = JSON.parse(toolCall.function.arguments);
             console.log('⚙️ Modification args:', args);
-            const modifiedSchema = await aiService.generateSchema(`${args.modification_type}: ${args.description}`, currentSchema);
-            console.log('✅ Modified schema tables count:', modifiedSchema?.tables?.length || 0);
+            
+            // Generate the AI's proposed schema
+            const aiGeneratedSchema = await aiService.generateSchema(`${args.modification_type}: ${args.description}`, currentSchema);
+            console.log('🤖 AI generated schema tables count:', aiGeneratedSchema?.tables?.length || 0);
+            
+            // Use non-destructive merging to preserve existing relationships and IDs
+            const finalSchema = computeFinalSchemaState(currentSchema, aiGeneratedSchema);
+            console.log('✅ Final merged schema tables count:', finalSchema?.tables?.length || 0);
+            console.log('✅ Final merged schema relationships count:', finalSchema?.relationships?.length || 0);
+            
             responseContent = `I've modified your schema. Changes: ${args.description}`;
-            finalResponse = { schema: modifiedSchema, content: responseContent };
+            finalResponse = { schema: finalSchema, content: responseContent };
           } else {
             // Unknown tool call
             responseContent = `Tool execution not implemented: ${toolCall.function.name}`;

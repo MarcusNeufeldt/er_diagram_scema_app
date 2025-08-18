@@ -42,6 +42,7 @@ export const Canvas: React.FC = () => {
     snapToGrid,
     gridSize,
     isReadOnly,
+    closeAllDropdowns,
   } = useDiagramStore();
 
   const { project } = useReactFlow();
@@ -60,11 +61,12 @@ export const Canvas: React.FC = () => {
     return true; // Allow all connections for now
   }, []);
 
-  // Handle canvas click to deselect nodes and close context menu
+  // Handle canvas click to deselect nodes, close context menu, and close dropdowns
   const handlePaneClick = useCallback(() => {
     selectNode(null);
     setContextMenuNode(null);
-  }, [selectNode, setContextMenuNode]);
+    closeAllDropdowns();
+  }, [selectNode, setContextMenuNode, closeAllDropdowns]);
 
   // Handle double-click to add new table (only on empty canvas)
   const handlePaneDoubleClick = useCallback(

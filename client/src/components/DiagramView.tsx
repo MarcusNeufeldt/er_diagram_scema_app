@@ -13,6 +13,7 @@ import ReadOnlyBanner from './ReadOnlyBanner';
 import { useCollaborationStore } from '../stores/collaborationStore';
 import { useDiagramStore } from '../stores/diagramStore';
 import { useDiagramLocking } from '../hooks/useDiagramLocking';
+import { useAutoSave } from '../hooks/useAutoSave';
 import { userService } from '../services/userService';
 
 export const DiagramView: React.FC = () => {
@@ -57,6 +58,12 @@ export const DiagramView: React.FC = () => {
   useDiagramLocking({
     diagramId: diagramId || '',
     userId: currentUser?.id || '',
+  });
+
+  // Initialize auto-save
+  useAutoSave({
+    diagramId: diagramId || null,
+    enabled: true,
   });
 
   // Load diagram from database

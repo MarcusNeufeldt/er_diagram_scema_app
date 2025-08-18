@@ -17,6 +17,15 @@ interface HistoryState {
   edges: Edge[];
 }
 
+// Notification types
+interface Notification {
+  id: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  message: string;
+  timestamp: number;
+  duration?: number; // Duration in ms, defaults to 3000
+}
+
 // Non-undoable UI state
 interface UIState {
   selectedNodeId: string | null;
@@ -26,6 +35,14 @@ interface UIState {
   animatingNodeIds: Set<string>;
   yNodes: Y.Array<any> | null;
   yEdges: Y.Array<any> | null;
+  
+  // Notification state
+  notifications: Notification[];
+  
+  // Toolbar dropdown state
+  showFileMenu: boolean;
+  showShapeMenu: boolean;
+  showViewMenu: boolean;
   
   // Grid settings
   snapToGrid: boolean;
@@ -40,6 +57,9 @@ interface UIState {
   isReadOnly: boolean;
   lockedBy: string | null;
   currentDiagramId: string | null;
+  lockStatus: 'locked' | 'unlocked' | 'expired' | 'warning';
+  lockTimeRemaining: number; // seconds
+  lastHeartbeat: number; // timestamp
 }
 
 interface DiagramState extends UIState {
@@ -91,6 +111,19 @@ interface DiagramState extends UIState {
   // Locking actions
   setReadOnly: (isReadOnly: boolean, lockedBy?: string | null) => void;
   setCurrentDiagramId: (diagramId: string | null) => void;
+  setLockStatus: (status: 'locked' | 'unlocked' | 'expired' | 'warning', timeRemaining?: number) => void;
+  updateLockTimeRemaining: (seconds: number) => void;
+  
+  // Notification actions
+  addNotification: (type: 'success' | 'error' | 'warning' | 'info', message: string, duration?: number) => void;
+  removeNotification: (id: string) => void;
+  clearNotifications: () => void;
+  
+  // Toolbar dropdown actions
+  setShowFileMenu: (show: boolean) => void;
+  setShowShapeMenu: (show: boolean) => void;
+  setShowViewMenu: (show: boolean) => void;
+  closeAllDropdowns: () => void;
 }
 
 // Utility function to snap position to grid
@@ -157,6 +190,14 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
   yNodes: null,
   yEdges: null,
   
+  // Notification state
+  notifications: [],
+  
+  // Toolbar dropdown state
+  showFileMenu: false,
+  showShapeMenu: false,
+  showViewMenu: false,
+  
   // Grid settings
   snapToGrid: true,
   gridSize: 25,
@@ -170,6 +211,9 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
   isReadOnly: false,
   lockedBy: null,
   currentDiagramId: null,
+  lockStatus: 'unlocked',
+  lockTimeRemaining: 0,
+  lastHeartbeat: 0,
   
   // Undo/Redo methods
   undo: () => {
@@ -1027,6 +1071,70 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
   
   setCurrentDiagramId: (diagramId: string | null) => {
     set({ currentDiagramId: diagramId });
+  },
+  
+  setLockStatus: (status, timeRemaining = 0) => {
+    set({ 
+      lockStatus: status, 
+      lockTimeRemaining: timeRemaining,
+      lastHeartbeat: Date.now()
+    });
+  },
+  
+  updateLockTimeRemaining: (seconds) => {
+    set({ lockTimeRemaining: seconds });
+  },
+  
+  // Notification actions
+  addNotification: (type, message, duration = 3000) => {
+    const id = `notification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const notification: Notification = {
+      id,
+      type,
+      message,
+      timestamp: Date.now(),
+      duration
+    };
+    
+    const currentNotifications = get().notifications;
+    set({ notifications: [...currentNotifications, notification] });
+    
+    // Auto-remove notification after duration
+    if (duration > 0) {
+      setTimeout(() => {
+        get().removeNotification(id);
+      }, duration);
+    }
+  },
+  
+  removeNotification: (id) => {
+    const currentNotifications = get().notifications;
+    set({ notifications: currentNotifications.filter(n => n.id !== id) });
+  },
+  
+  clearNotifications: () => {
+    set({ notifications: [] });
+  },
+  
+  // Toolbar dropdown actions
+  setShowFileMenu: (show) => {
+    set({ showFileMenu: show });
+  },
+  
+  setShowShapeMenu: (show) => {
+    set({ showShapeMenu: show });
+  },
+  
+  setShowViewMenu: (show) => {
+    set({ showViewMenu: show });
+  },
+  
+  closeAllDropdowns: () => {
+    set({ 
+      showFileMenu: false, 
+      showShapeMenu: false, 
+      showViewMenu: false 
+    });
   },
   
   addStickyNote: (position) => {

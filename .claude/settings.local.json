@@ -44,7 +44,9 @@
       "Bash(npx prisma:*)",
       "Bash(del create-chat-table.js)",
       "Bash(set PORT=3007)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(cmd /c:*)",
+      "Bash(npx kill-port:*)"
     ],
     "deny": [],
     "ask": [],
