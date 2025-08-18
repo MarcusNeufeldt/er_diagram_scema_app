@@ -29,6 +29,7 @@ interface Notification {
 // Non-undoable UI state
 interface UIState {
   selectedNodeId: string | null;
+  selectedNodeIds: string[]; // For multi-selection
   contextMenuNodeId: string | null;
   pendingConnection: PendingConnection | null;
   editingEdgeId: string | null;
@@ -60,6 +61,12 @@ interface UIState {
   lockStatus: 'locked' | 'unlocked' | 'expired' | 'warning';
   lockTimeRemaining: number; // seconds
   lastHeartbeat: number; // timestamp
+  
+  // Search state
+  searchQuery: string;
+  searchResults: string[];
+  currentSearchIndex: number;
+  isSearchOpen: boolean;
 }
 
 interface DiagramState extends UIState {
@@ -97,6 +104,8 @@ interface DiagramState extends UIState {
   updateNode: (nodeId: string, data: Partial<StickyNoteData | ShapeData | TableData>) => void;
   deleteNode: (nodeId: string) => void;
   selectNode: (nodeId: string | null) => void;
+  setSelectedNodes: (nodeIds: string[]) => void;
+  toggleNodeSelection: (nodeId: string) => void;
   setContextMenuNode: (nodeId: string | null) => void;
   addColumn: (nodeId: string, column: Column) => void;
   updateColumn: (nodeId: string, columnId: string, updates: Partial<Column>) => void;
@@ -128,6 +137,18 @@ interface DiagramState extends UIState {
   setShowShapeMenu: (show: boolean) => void;
   setShowViewMenu: (show: boolean) => void;
   closeAllDropdowns: () => void;
+  
+  // Search actions
+  setSearchQuery: (query: string) => void;
+  setSearchOpen: (isOpen: boolean) => void;
+  searchNodes: (query: string) => void;
+  navigateToSearchResult: (index: number) => void;
+  nextSearchResult: () => void;
+  previousSearchResult: () => void;
+  
+  // Alignment actions
+  alignSelectedNodes: (alignment: 'left' | 'right' | 'top' | 'bottom' | 'center-horizontal' | 'center-vertical') => void;
+  distributeSelectedNodes: (direction: 'horizontal' | 'vertical') => void;
 }
 
 // Utility function to snap position to grid
@@ -187,6 +208,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
   
   // UI state
   selectedNodeId: null,
+  selectedNodeIds: [],
   contextMenuNodeId: null,
   pendingConnection: null,
   editingEdgeId: null,
@@ -218,6 +240,12 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
   lockStatus: 'unlocked',
   lockTimeRemaining: 0,
   lastHeartbeat: 0,
+  
+  // Search state
+  searchQuery: '',
+  searchResults: [],
+  currentSearchIndex: -1,
+  isSearchOpen: false,
   
   // Undo/Redo methods
   undo: () => {
@@ -562,7 +590,33 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
   },
 
   selectNode: (nodeId) => {
-    set({ selectedNodeId: nodeId });
+    set({ selectedNodeId: nodeId, selectedNodeIds: nodeId ? [nodeId] : [] });
+  },
+  
+  setSelectedNodes: (nodeIds) => {
+    set({ 
+      selectedNodeIds: nodeIds,
+      selectedNodeId: nodeIds.length === 1 ? nodeIds[0] : null
+    });
+  },
+  
+  toggleNodeSelection: (nodeId) => {
+    const { selectedNodeIds } = get();
+    const isSelected = selectedNodeIds.includes(nodeId);
+    
+    if (isSelected) {
+      const newSelection = selectedNodeIds.filter(id => id !== nodeId);
+      set({
+        selectedNodeIds: newSelection,
+        selectedNodeId: newSelection.length === 1 ? newSelection[0] : null
+      });
+    } else {
+      const newSelection = [...selectedNodeIds, nodeId];
+      set({
+        selectedNodeIds: newSelection,
+        selectedNodeId: newSelection.length === 1 ? newSelection[0] : null
+      });
+    }
   },
 
   setContextMenuNode: (nodeId) => {
@@ -1349,6 +1403,239 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
       yNodes.push(newNodes);
       yEdges.delete(0, yEdges.length);
       yEdges.push(newEdges);
+    }
+  },
+  
+  // Search methods
+  setSearchQuery: (query) => {
+    set({ searchQuery: query });
+    if (query.trim()) {
+      get().searchNodes(query);
+    } else {
+      set({ searchResults: [], currentSearchIndex: -1 });
+    }
+  },
+  
+  setSearchOpen: (isOpen) => {
+    set({ isSearchOpen: isOpen });
+    if (!isOpen) {
+      set({ searchQuery: '', searchResults: [], currentSearchIndex: -1 });
+    }
+  },
+  
+  searchNodes: (query) => {
+    const { nodes } = get();
+    const searchTerm = query.toLowerCase().trim();
+    
+    if (!searchTerm) {
+      set({ searchResults: [], currentSearchIndex: -1 });
+      return;
+    }
+    
+    const results: string[] = [];
+    
+    nodes.forEach(node => {
+      // Search in table name
+      if (node.data.name?.toLowerCase().includes(searchTerm)) {
+        results.push(node.id);
+      }
+      // Search in columns for table nodes
+      else if (node.type === 'table' && node.data.columns) {
+        const hasMatchingColumn = node.data.columns.some((col: Column) => 
+          col.name?.toLowerCase().includes(searchTerm)
+        );
+        if (hasMatchingColumn) {
+          results.push(node.id);
+        }
+      }
+      // Search in content for sticky notes
+      else if (node.type === 'sticky-note' && node.data.content?.toLowerCase().includes(searchTerm)) {
+        results.push(node.id);
+      }
+      // Search in title/text for shapes
+      else if (node.type === 'shape' && 
+               (node.data.title?.toLowerCase().includes(searchTerm) || 
+                node.data.text?.toLowerCase().includes(searchTerm))) {
+        results.push(node.id);
+      }
+    });
+    
+    set({ 
+      searchResults: results, 
+      currentSearchIndex: results.length > 0 ? 0 : -1 
+    });
+    
+    // Navigate to first result if any
+    if (results.length > 0) {
+      get().navigateToSearchResult(0);
+    }
+  },
+  
+  navigateToSearchResult: (index) => {
+    const { searchResults } = get();
+    if (index < 0 || index >= searchResults.length) return;
+    
+    set({ currentSearchIndex: index });
+    
+    // Select the node and center it in view
+    const nodeId = searchResults[index];
+    get().selectNode(nodeId);
+    
+    // We'll need to trigger centering in the Canvas component
+    // For now, just select the node
+  },
+  
+  nextSearchResult: () => {
+    const { currentSearchIndex, searchResults } = get();
+    if (searchResults.length === 0) return;
+    
+    const nextIndex = (currentSearchIndex + 1) % searchResults.length;
+    get().navigateToSearchResult(nextIndex);
+  },
+  
+  previousSearchResult: () => {
+    const { currentSearchIndex, searchResults } = get();
+    if (searchResults.length === 0) return;
+    
+    const prevIndex = currentSearchIndex <= 0 ? searchResults.length - 1 : currentSearchIndex - 1;
+    get().navigateToSearchResult(prevIndex);
+  },
+  
+  // Alignment methods
+  alignSelectedNodes: (alignment) => {
+    const { selectedNodeIds, nodes, snapToGrid, gridSize } = get();
+    if (selectedNodeIds.length < 2) return;
+    
+    const selectedNodes = nodes.filter(node => selectedNodeIds.includes(node.id));
+    let referenceValue: number;
+    
+    switch (alignment) {
+      case 'left':
+        referenceValue = Math.min(...selectedNodes.map(node => node.position.x));
+        break;
+      case 'right':
+        referenceValue = Math.max(...selectedNodes.map(node => node.position.x + (node.style?.width as number || 300)));
+        break;
+      case 'top':
+        referenceValue = Math.min(...selectedNodes.map(node => node.position.y));
+        break;
+      case 'bottom':
+        referenceValue = Math.max(...selectedNodes.map(node => node.position.y + (node.style?.height as number || 200)));
+        break;
+      case 'center-horizontal':
+        const avgX = selectedNodes.reduce((sum, node) => sum + node.position.x + ((node.style?.width as number || 300) / 2), 0) / selectedNodes.length;
+        referenceValue = avgX;
+        break;
+      case 'center-vertical':
+        const avgY = selectedNodes.reduce((sum, node) => sum + node.position.y + ((node.style?.height as number || 200) / 2), 0) / selectedNodes.length;
+        referenceValue = avgY;
+        break;
+      default:
+        return;
+    }
+    
+    const newNodes = nodes.map(node => {
+      if (!selectedNodeIds.includes(node.id)) return node;
+      
+      let newPosition = { ...node.position };
+      
+      switch (alignment) {
+        case 'left':
+          newPosition.x = referenceValue;
+          break;
+        case 'right':
+          newPosition.x = referenceValue - (node.style?.width as number || 300);
+          break;
+        case 'top':
+          newPosition.y = referenceValue;
+          break;
+        case 'bottom':
+          newPosition.y = referenceValue - (node.style?.height as number || 200);
+          break;
+        case 'center-horizontal':
+          newPosition.x = referenceValue - ((node.style?.width as number || 300) / 2);
+          break;
+        case 'center-vertical':
+          newPosition.y = referenceValue - ((node.style?.height as number || 200) / 2);
+          break;
+      }
+      
+      // Snap to grid if enabled
+      newPosition = snapToGridPosition(newPosition, gridSize, snapToGrid);
+      
+      return { ...node, position: newPosition };
+    });
+    
+    setStateWithHistory({ nodes: newNodes }, `Align ${alignment}`);
+    
+    // Sync to Yjs if available
+    const { yNodes } = get();
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+    }
+  },
+  
+  distributeSelectedNodes: (direction) => {
+    const { selectedNodeIds, nodes, snapToGrid, gridSize } = get();
+    if (selectedNodeIds.length < 3) return;
+    
+    const selectedNodes = nodes.filter(node => selectedNodeIds.includes(node.id));
+    
+    // Sort nodes by position
+    if (direction === 'horizontal') {
+      selectedNodes.sort((a, b) => a.position.x - b.position.x);
+    } else {
+      selectedNodes.sort((a, b) => a.position.y - b.position.y);
+    }
+    
+    const first = selectedNodes[0];
+    const last = selectedNodes[selectedNodes.length - 1];
+    
+    let totalSpace: number;
+    let spacing: number;
+    
+    if (direction === 'horizontal') {
+      const firstRight = first.position.x + (first.style?.width as number || 300);
+      const lastLeft = last.position.x;
+      totalSpace = lastLeft - firstRight;
+      spacing = totalSpace / (selectedNodes.length - 1);
+    } else {
+      const firstBottom = first.position.y + (first.style?.height as number || 200);
+      const lastTop = last.position.y;
+      totalSpace = lastTop - firstBottom;
+      spacing = totalSpace / (selectedNodes.length - 1);
+    }
+    
+    const newNodes = nodes.map(node => {
+      const selectedIndex = selectedNodes.findIndex(n => n.id === node.id);
+      if (selectedIndex === -1 || selectedIndex === 0 || selectedIndex === selectedNodes.length - 1) {
+        return node; // Don't move first and last nodes
+      }
+      
+      let newPosition = { ...node.position };
+      
+      if (direction === 'horizontal') {
+        const firstRight = first.position.x + (first.style?.width as number || 300);
+        newPosition.x = firstRight + (spacing * selectedIndex) - (node.style?.width as number || 300);
+      } else {
+        const firstBottom = first.position.y + (first.style?.height as number || 200);
+        newPosition.y = firstBottom + (spacing * selectedIndex) - (node.style?.height as number || 200);
+      }
+      
+      // Snap to grid if enabled
+      newPosition = snapToGridPosition(newPosition, gridSize, snapToGrid);
+      
+      return { ...node, position: newPosition };
+    });
+    
+    setStateWithHistory({ nodes: newNodes }, `Distribute ${direction}`);
+    
+    // Sync to Yjs if available
+    const { yNodes } = get();
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
     }
   }
   };

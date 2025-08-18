@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { 
   Plus, Download, Upload, Save, Undo, Redo, Bot, Layout, 
   Grid3x3, StickyNote, Square, Circle, Diamond, ChevronDown,
-  FileText, Shapes, Settings, Eye, Maximize2, Focus
+  FileText, Shapes, Settings, Eye, Maximize2, Focus, Search
 } from 'lucide-react';
 // Removed useReactFlow import to avoid context issues
 import { useDiagramStore } from '../stores/diagramStore';
@@ -38,7 +38,8 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
     showViewMenu,
     setShowFileMenu,
     setShowShapeMenu,
-    setShowViewMenu
+    setShowViewMenu,
+    setSearchOpen
   } = useDiagramStore();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -314,6 +315,16 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         >
           <Plus size={16} />
           <span className="text-sm">Add Table</span>
+        </button>
+
+        {/* Search Button */}
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="flex items-center space-x-1 px-3 py-1.5 text-gray-700 hover:bg-gray-100 rounded transition-colors"
+          title="Search tables and columns (Ctrl+F)"
+        >
+          <Search size={16} />
+          <span className="text-sm">Search</span>
         </button>
 
         {/* Fit View Button */}

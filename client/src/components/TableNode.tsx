@@ -24,14 +24,15 @@ const TABLE_COLORS = [
 ];
 
 export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
-  const { selectNode, deleteTable, updateTable, addColumn, animatingNodeIds } = useDiagramStore();
+  const { deleteTable, updateTable, addColumn, animatingNodeIds, selectedNodeIds } = useDiagramStore();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
   const [newName, setNewName] = useState(data.name);
   const [showColorPicker, setShowColorPicker] = useState(false);
 
-  const handleClick = () => {
-    selectNode(data.id);
+  const handleClick = (e: React.MouseEvent) => {
+    // Let the Canvas component handle multi-selection logic
+    // This click will bubble up to the Canvas onNodeClick handler
     setShowColorPicker(false);
   };
 
@@ -89,10 +90,11 @@ export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
   };
 
   const isAnimating = animatingNodeIds.has(data.id);
+  const isMultiSelected = selectedNodeIds.includes(data.id);
   
   const tableStyle = {
     backgroundColor: data.backgroundColor || '#ffffff',
-    borderColor: data.borderColor || (selected ? '#3b82f6' : '#d1d5db'),
+    borderColor: data.borderColor || (selected || isMultiSelected ? '#3b82f6' : '#d1d5db'),
   };
 
   // Calculate header and footer colors based on table background
@@ -134,6 +136,8 @@ export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
       <div
         className={`border-2 rounded-lg shadow-lg min-w-[250px] transition-all duration-300 ${
           selected ? 'border-blue-500' : ''
+        } ${
+          isMultiSelected && selectedNodeIds.length > 1 ? 'ring-2 ring-blue-400' : ''
         } ${
           isAnimating ? 'animate-pulse border-green-500 shadow-green-200 shadow-2xl scale-105' : ''
         }`}
