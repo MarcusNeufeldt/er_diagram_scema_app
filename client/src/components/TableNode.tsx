@@ -24,14 +24,15 @@ const TABLE_COLORS = [
 ];
 
 export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
-  const { selectNode, deleteTable, updateTable, addColumn, animatingNodeIds } = useDiagramStore();
+  const { selectNode, deleteTable, updateTable, addColumn, animatingNodeIds, selectedNodeIds } = useDiagramStore();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
   const [newName, setNewName] = useState(data.name);
   const [showColorPicker, setShowColorPicker] = useState(false);
 
-  const handleClick = () => {
-    selectNode(data.id);
+  const handleClick = (e: React.MouseEvent) => {
+    // Let the Canvas component handle multi-selection logic
+    // This click will bubble up to the Canvas onNodeClick handler
     setShowColorPicker(false);
   };
 
