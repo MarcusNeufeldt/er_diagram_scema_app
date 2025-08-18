@@ -2,12 +2,13 @@ import React, { useRef, useEffect } from 'react';
 import { 
   Plus, Download, Upload, Save, Undo, Redo, Bot, Layout, 
   Grid3x3, StickyNote, Square, Circle, Diamond, ChevronDown,
-  FileText, Shapes, Settings
+  FileText, Shapes, Settings, Image
 } from 'lucide-react';
 import { useDiagramStore } from '../stores/diagramStore';
 import { SQLParser, SQLGenerator } from '../lib/sqlParser';
 import { userService } from '../services/userService';
 import { LockStatusIndicator } from './LockStatusIndicator';
+import { exportCanvasAsPNG } from '../lib/exportUtils';
 
 interface ToolbarProps {
   onOpenAIChat: () => void;
@@ -186,6 +187,30 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
     setShowFileMenu(false);
   };
 
+  const handleExportPNG = async () => {
+    try {
+      if (nodes.length === 0) {
+        addNotification('warning', 'No tables to export');
+        setShowFileMenu(false);
+        return;
+      }
+
+      addNotification('info', 'Generating PNG export...');
+      
+      await exportCanvasAsPNG(nodes, 'database-diagram.png', {
+        backgroundColor: '#ffffff',
+        scale: 2
+      });
+      
+      addNotification('success', 'Diagram exported as PNG successfully');
+    } catch (error) {
+      console.error('PNG export error:', error);
+      addNotification('error', 'Failed to export diagram as PNG');
+    } finally {
+      setShowFileMenu(false);
+    }
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -295,6 +320,13 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
               >
                 <Download size={14} />
                 <span>Export JSON</span>
+              </button>
+              <button
+                onClick={handleExportPNG}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center space-x-2"
+              >
+                <Image size={14} />
+                <span>Export PNG</span>
               </button>
             </div>
           )}
