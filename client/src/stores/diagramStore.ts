@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Node, Edge, addEdge, applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange, Connection } from 'reactflow';
-import { TableData, Column, StickyNoteData, ShapeData } from '../types';
+import { TableData, Column, StickyNoteData, ShapeData, Index } from '../types';
 import * as Y from 'yjs';
 
 interface PendingConnection {
@@ -101,6 +101,10 @@ interface DiagramState extends UIState {
   addColumn: (nodeId: string, column: Column) => void;
   updateColumn: (nodeId: string, columnId: string, updates: Partial<Column>) => void;
   removeColumn: (nodeId: string, columnId: string) => void;
+  addIndex: (nodeId: string, index: Index) => void;
+  updateIndex: (nodeId: string, indexId: string, updates: Partial<Index>) => void;
+  removeIndex: (nodeId: string, indexId: string) => void;
+  setCompositePrimaryKey: (nodeId: string, columnIds: string[]) => void;
   importDiagram: (diagramData: { nodes: Node[]; edges?: Edge[] }) => void;
   initializeYjs: (doc: Y.Doc) => void;
   syncFromYjs: () => void;
@@ -621,12 +625,117 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
             data: {
               ...node.data,
               columns: node.data.columns.filter((col: Column) => col.id !== columnId),
+              // Remove column from indexes
+              indexes: node.data.indexes.map((index: Index) => ({
+                ...index,
+                columns: index.columns.filter(colId => colId !== columnId)
+              })).filter((index: Index) => index.columns.length > 0),
+              // Remove column from composite primary key
+              compositePrimaryKey: node.data.compositePrimaryKey?.filter(colId => colId !== columnId)
             },
           }
         : node
     );
     
     setStateWithHistory({ nodes: newNodes }, 'Remove Column');
+    
+    // Sync to Yjs if available
+    const { yNodes } = get();
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+    }
+  },
+
+  addIndex: (nodeId, index) => {
+    const newNodes = get().nodes.map((node) =>
+      node.id === nodeId
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              indexes: [...node.data.indexes, index],
+            },
+          }
+        : node
+    );
+    
+    setStateWithHistory({ nodes: newNodes }, 'Add Index');
+    
+    // Sync to Yjs if available
+    const { yNodes } = get();
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+    }
+  },
+
+  updateIndex: (nodeId, indexId, updates) => {
+    const newNodes = get().nodes.map((node) =>
+      node.id === nodeId
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              indexes: node.data.indexes.map((index: Index) =>
+                index.id === indexId ? { ...index, ...updates } : index
+              ),
+            },
+          }
+        : node
+    );
+    
+    setStateWithHistory({ nodes: newNodes }, 'Update Index');
+    
+    // Sync to Yjs if available
+    const { yNodes } = get();
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+    }
+  },
+
+  removeIndex: (nodeId, indexId) => {
+    const newNodes = get().nodes.map((node) =>
+      node.id === nodeId
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              indexes: node.data.indexes.filter((index: Index) => index.id !== indexId),
+            },
+          }
+        : node
+    );
+    
+    setStateWithHistory({ nodes: newNodes }, 'Remove Index');
+    
+    // Sync to Yjs if available
+    const { yNodes } = get();
+    if (yNodes) {
+      yNodes.delete(0, yNodes.length);
+      yNodes.push(newNodes);
+    }
+  },
+
+  setCompositePrimaryKey: (nodeId, columnIds) => {
+    const newNodes = get().nodes.map((node) =>
+      node.id === nodeId
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              compositePrimaryKey: columnIds.length > 0 ? columnIds : undefined,
+              // If setting composite primary key, clear individual primary key flags
+              columns: columnIds.length > 0 
+                ? node.data.columns.map((col: Column) => ({ ...col, isPrimaryKey: false }))
+                : node.data.columns
+            },
+          }
+        : node
+    );
+    
+    setStateWithHistory({ nodes: newNodes }, 'Set Composite Primary Key');
     
     // Sync to Yjs if available
     const { yNodes } = get();
