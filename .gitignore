@@ -11,13 +11,10 @@ yarn-error.log*
 /server/dist/
 
 # Environment variables and secrets
-.env
-.env.local
 .env.development.local
 .env.test.local
 .env.production.local
 *.env
-.env.*
 
 # API Keys and sensitive data
 /server/.env*
@@ -143,3 +140,4 @@ Dockerfile.dev
 # Misc
 .vscode/settings.json
 .vercel
+config.bat

@@ -40,7 +40,6 @@ export const Canvas: React.FC = () => {
     addTable,
     selectNode,
     setSelectedNodes,
-    toggleNodeSelection,
     setContextMenuNode,
     editConnection,
     snapToGrid,
@@ -148,18 +147,12 @@ export const Canvas: React.FC = () => {
     closeAllDropdowns();
   }, [selectNode, setContextMenuNode, closeAllDropdowns]);
   
-  // Handle node selection with multi-select support
-  const handleNodeClick = useCallback((event: React.MouseEvent, node: any) => {
-    event.stopPropagation();
-    
-    if (event.ctrlKey || event.metaKey) {
-      // Multi-select mode
-      toggleNodeSelection(node.id);
-    } else {
-      // Single select mode
-      selectNode(node.id);
-    }
-  }, [selectNode, toggleNodeSelection]);
+  // Handle selection changes from ReactFlow
+  const handleSelectionChange = useCallback((params: any) => {
+    const selectedNodes = params.nodes || [];
+    const nodeIds = selectedNodes.map((node: any) => node.id);
+    setSelectedNodes(nodeIds);
+  }, [setSelectedNodes]);
 
   // Handle double-click to add new table (only on empty canvas)
   const handlePaneDoubleClick = useCallback(
@@ -201,7 +194,7 @@ export const Canvas: React.FC = () => {
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         onPaneClick={handlePaneClick}
-        onNodeClick={handleNodeClick}
+        onSelectionChange={handleSelectionChange}
         onDoubleClick={isReadOnly ? undefined : handlePaneDoubleClick}
         onEdgeDoubleClick={isReadOnly ? undefined : handleEdgeDoubleClick}
         nodeTypes={nodeTypes}

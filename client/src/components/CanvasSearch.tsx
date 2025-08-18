@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { useDiagramStore } from '../stores/diagramStore';
 
