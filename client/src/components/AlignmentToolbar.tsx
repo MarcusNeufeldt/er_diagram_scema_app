@@ -2,12 +2,11 @@ import React from 'react';
 import { 
   AlignLeft, 
   AlignRight, 
-  AlignTop, 
-  AlignBottom, 
   AlignCenter,
-  AlignMiddle,
-  DistributeHorizontal,
-  DistributeVertical
+  Move,
+  ArrowUp,
+  ArrowDown,
+  Minus
 } from 'lucide-react';
 import { useDiagramStore } from '../stores/diagramStore';
 
@@ -69,21 +68,21 @@ export const AlignmentToolbar: React.FC<AlignmentToolbarProps> = ({ selectedNode
           className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
           title="Align Top"
         >
-          <AlignTop size={16} />
+          <ArrowUp size={16} />
         </button>
         <button
           onClick={() => handleAlign('center-vertical')}
           className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
           title="Align Center Vertically"
         >
-          <AlignMiddle size={16} />
+          <Minus size={16} />
         </button>
         <button
           onClick={() => handleAlign('bottom')}
           className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
           title="Align Bottom"
         >
-          <AlignBottom size={16} />
+          <ArrowDown size={16} />
         </button>
       </div>
       
@@ -95,14 +94,14 @@ export const AlignmentToolbar: React.FC<AlignmentToolbarProps> = ({ selectedNode
             className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
             title="Distribute Horizontally"
           >
-            <DistributeHorizontal size={16} />
+            <Move size={16} />
           </button>
           <button
             onClick={() => handleDistribute('vertical')}
             className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
             title="Distribute Vertically"
           >
-            <DistributeVertical size={16} />
+            <Move size={16} className="rotate-90" />
           </button>
         </div>
       )}
