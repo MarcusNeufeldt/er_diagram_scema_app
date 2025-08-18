@@ -67,7 +67,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({ data, selected }) => {
 
 
   return (
-    <div>
+    <>
       <NodeResizer 
         color="#3b82f6"
         isVisible={selected}
@@ -174,6 +174,6 @@ export const StickyNote: React.FC<StickyNoteProps> = ({ data, selected }) => {
           {data.author} {data.timestamp && `• ${new Date(data.timestamp).toLocaleDateString()}`}
         </div>
       )}
-    </div>
+    </>
   );
 };

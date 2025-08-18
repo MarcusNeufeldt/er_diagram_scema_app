@@ -32,44 +32,4 @@ code {
   animation: slide-in 0.3s ease-out;
 }
 
-/* Force z-index layering for diagram elements */
-.react-flow__node[data-id*="shape-"] {
-  z-index: 1 !important;
-  position: relative !important;
-}
 
-.react-flow__node[data-id*="table-"] {
-  z-index: 100 !important;
-  position: relative !important;
-}
-
-.react-flow__node[data-id*="sticky-"] {
-  z-index: 50 !important;
-  position: relative !important;
-}
-
-/* Additional backup approach - target by node type */
-.react-flow__node[data-nodetype="shape"] {
-  z-index: 1 !important;
-  position: relative !important;
-}
-
-.react-flow__node[data-nodetype="table"] {
-  z-index: 100 !important;
-  position: relative !important;
-}
-
-.react-flow__node[data-nodetype="sticky-note"] {
-  z-index: 50 !important;
-  position: relative !important;
-}
-
-/* Ensure edges/connections are above shapes but below tables */
-.react-flow__edge {
-  z-index: 10 !important;
-}
-
-/* Alternative approach - use CSS transform to force layering */
-.react-flow__node[data-id*="shape-"] > div {
-  transform: translateZ(0) !important;
-}

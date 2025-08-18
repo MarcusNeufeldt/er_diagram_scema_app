@@ -130,7 +130,7 @@ export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
   };
 
   return (
-    <div>
+    <>
       <div
         className={`border-2 rounded-lg shadow-lg min-w-[250px] transition-all duration-300 ${
           selected ? 'border-blue-500' : ''
@@ -265,6 +265,6 @@ export const TableNode: React.FC<TableNodeProps> = ({ data, selected }) => {
           onDuplicate={handleDuplicate}
         />
       )}
-    </div>
+    </>
   );
 };
