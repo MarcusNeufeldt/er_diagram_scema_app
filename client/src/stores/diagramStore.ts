@@ -628,10 +628,10 @@ export const useDiagramStore = create<DiagramState>((set, get) => {
               // Remove column from indexes
               indexes: node.data.indexes.map((index: Index) => ({
                 ...index,
-                columns: index.columns.filter(colId => colId !== columnId)
+                columns: index.columns.filter((colId: string) => colId !== columnId)
               })).filter((index: Index) => index.columns.length > 0),
               // Remove column from composite primary key
-              compositePrimaryKey: node.data.compositePrimaryKey?.filter(colId => colId !== columnId)
+              compositePrimaryKey: node.data.compositePrimaryKey?.filter((colId: string) => colId !== columnId)
             },
           }
         : node
