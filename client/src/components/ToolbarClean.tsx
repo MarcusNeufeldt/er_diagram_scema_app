@@ -4,7 +4,7 @@ import {
   Grid3x3, StickyNote, Square, Circle, Diamond, ChevronDown,
   FileText, Shapes, Settings, Eye, Maximize2, Focus
 } from 'lucide-react';
-import { useReactFlow } from 'reactflow';
+// Removed useReactFlow import to avoid context issues
 import { useDiagramStore } from '../stores/diagramStore';
 import { SQLParser, SQLGenerator } from '../lib/sqlParser';
 import { userService } from '../services/userService';
@@ -40,8 +40,6 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
     setShowShapeMenu,
     setShowViewMenu
   } = useDiagramStore();
-  
-  const { fitView } = useReactFlow();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileMenuRef = useRef<HTMLDivElement>(null);
@@ -88,11 +86,23 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
   };
 
   const handleFitView = () => {
-    fitView({ 
-      padding: 0.1,  // 10% padding around all nodes
-      duration: 800  // Smooth animation
-    });
-    addNotification('success', 'Fitted all tables in view');
+    // Trigger the native ReactFlow fit view button
+    const fitViewButton = document.querySelector('.react-flow__controls-fitview') as HTMLButtonElement;
+    if (fitViewButton) {
+      fitViewButton.click();
+      addNotification('success', 'Fitted all tables in view');
+    } else {
+      // Fallback: try to find any fit view control
+      const controls = document.querySelector('.react-flow__controls');
+      const buttons = controls?.querySelectorAll('button');
+      if (buttons && buttons.length >= 3) {
+        // Usually the fit view button is the 3rd button (after zoom in/out)
+        (buttons[2] as HTMLButtonElement).click();
+        addNotification('success', 'Fitted all tables in view');
+      } else {
+        addNotification('warning', 'Could not find fit view control. Use the controls panel on the bottom-right.');
+      }
+    }
   };
 
   const handleAddStickyNote = () => {
