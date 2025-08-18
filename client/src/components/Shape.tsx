@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NodeProps, NodeResizer } from 'reactflow';
 import { ShapeData } from '../types';
 import { useDiagramStore } from '../stores/diagramStore';
-import { Trash2, Edit3, Palette, Square, Circle, Diamond } from 'lucide-react';
+import { Trash2, Edit3, Palette, Square, Circle, Diamond, Type } from 'lucide-react';
 
 interface ShapeProps extends NodeProps {
   data: ShapeData;
@@ -27,35 +27,62 @@ const SHAPE_TYPES = [
 
 export const Shape: React.FC<ShapeProps> = ({ data, selected }) => {
   const { updateNode, deleteNode } = useDiagramStore();
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingText, setIsEditingText] = useState(false);
   const [title, setTitle] = useState(data.title || '');
+  const [text, setText] = useState(data.text || '');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showShapePicker, setShowShapePicker] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
     }
-  }, [isEditing]);
+  }, [isEditingTitle]);
 
-  const handleSave = () => {
+  useEffect(() => {
+    if (isEditingText && textInputRef.current) {
+      textInputRef.current.focus();
+      textInputRef.current.select();
+    }
+  }, [isEditingText]);
+
+  const handleSaveTitle = () => {
     updateNode(data.id, { title: title.trim() });
-    setIsEditing(false);
+    setIsEditingTitle(false);
   };
 
-  const handleCancel = () => {
+  const handleCancelTitle = () => {
     setTitle(data.title || '');
-    setIsEditing(false);
+    setIsEditingTitle(false);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleSaveText = () => {
+    updateNode(data.id, { text: text.trim() });
+    setIsEditingText(false);
+  };
+
+  const handleCancelText = () => {
+    setText(data.text || '');
+    setIsEditingText(false);
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSave();
+      handleSaveTitle();
     } else if (e.key === 'Escape') {
-      handleCancel();
+      handleCancelTitle();
     }
+  };
+
+  const handleTextKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      handleCancelText();
+    }
+    // Enter creates new line in textarea, so no special handling needed
   };
 
   const handleDelete = () => {
@@ -77,7 +104,8 @@ export const Shape: React.FC<ShapeProps> = ({ data, selected }) => {
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsEditing(true);
+    // Double-click on shape starts editing text (main content)
+    setIsEditingText(true);
   };
 
 
@@ -131,24 +159,51 @@ export const Shape: React.FC<ShapeProps> = ({ data, selected }) => {
   };
 
   const renderContent = () => {
-    if (isEditing) {
-      return (
-        <input
-          ref={inputRef}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={handleSave}
-          onKeyDown={handleKeyDown}
-          className="w-full text-center bg-transparent border-none outline-none text-gray-800 text-sm font-medium"
-          placeholder="Label..."
-          style={{ backgroundColor: 'transparent' }}
-        />
-      );
-    }
-
     return (
-      <div className="text-gray-800 text-sm font-medium text-center px-2 truncate">
-        {data.title || ''}
+      <div className="flex flex-col items-center justify-center h-full w-full px-2 py-1">
+        {/* Title section */}
+        <div className="w-full">
+          {isEditingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleSaveTitle}
+              onKeyDown={handleTitleKeyDown}
+              className="w-full text-center bg-transparent border-none outline-none text-gray-800 text-sm font-bold"
+              placeholder="Title..."
+              style={{ backgroundColor: 'transparent' }}
+            />
+          ) : (
+            data.title && (
+              <div className="text-gray-800 text-sm font-bold text-center truncate mb-1">
+                {data.title}
+              </div>
+            )
+          )}
+        </div>
+
+        {/* Text/content section */}
+        <div className="w-full flex-1 flex items-center justify-center">
+          {isEditingText ? (
+            <textarea
+              ref={textInputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onBlur={handleSaveText}
+              onKeyDown={handleTextKeyDown}
+              className="w-full h-full text-center bg-transparent border-none outline-none text-gray-800 text-sm resize-none"
+              placeholder="Text..."
+              style={{ backgroundColor: 'transparent', minHeight: '20px' }}
+            />
+          ) : (
+            data.text && (
+              <div className="text-gray-800 text-sm text-center px-1 overflow-hidden">
+                {data.text}
+              </div>
+            )
+          )}
+        </div>
       </div>
     );
   };
@@ -164,12 +219,20 @@ export const Shape: React.FC<ShapeProps> = ({ data, selected }) => {
       {renderShape()}
 
       {/* Controls - show when selected */}
-      {selected && !isEditing && (
+      {selected && !isEditingTitle && !isEditingText && (
         <div className="absolute -top-2 -right-2 flex space-x-1">
           <button
-            onClick={() => setIsEditing(true)}
+            onClick={() => setIsEditingTitle(true)}
             className="p-1.5 bg-white rounded-full shadow-md border border-gray-200 hover:bg-gray-50 transition-colors"
-            title="Edit label"
+            title="Edit title"
+          >
+            <Type size={12} className="text-gray-600" />
+          </button>
+          
+          <button
+            onClick={() => setIsEditingText(true)}
+            className="p-1.5 bg-white rounded-full shadow-md border border-gray-200 hover:bg-gray-50 transition-colors"
+            title="Edit text"
           >
             <Edit3 size={12} className="text-gray-600" />
           </button>

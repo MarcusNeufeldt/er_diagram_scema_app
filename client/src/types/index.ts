@@ -19,6 +19,8 @@ export interface TableData {
   columns: Column[];
   indexes: string[];
   foreignKeys: ForeignKey[];
+  backgroundColor?: string;
+  borderColor?: string;
 }
 
 export interface ForeignKey {
@@ -42,6 +44,7 @@ export interface ShapeData {
   id: string;
   type: 'rectangle' | 'circle' | 'diamond';
   title?: string;
+  text?: string; // Separate from title
   color: string;
   borderColor: string;
   width: number;

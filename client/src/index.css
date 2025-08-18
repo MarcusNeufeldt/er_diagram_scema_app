@@ -31,3 +31,33 @@ code {
 .animate-slide-in {
   animation: slide-in 0.3s ease-out;
 }
+
+/* --- Custom Z-Index Layering for Shapes --- */
+
+/* Set a z-index for the container of all edges. This will be our middle layer. */
+.react-flow__edges {
+  z-index: 10;
+}
+
+/* 
+  Set z-indexes for different node types.
+  ReactFlow adds a class name like .react-flow__node-[type] to each node,
+  which we can use for specific styling.
+*/
+
+/* Shapes are background elements, so their z-index is lower than the edges. */
+.react-flow__node-shape {
+  z-index: 1;
+}
+
+/* Sticky notes should appear on top of edges. */
+.react-flow__node-sticky-note {
+  z-index: 50;
+}
+
+/* Tables are the primary focus and should appear on top of everything. */
+.react-flow__node-table {
+  z-index: 100;
+}
+
+
