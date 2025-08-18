@@ -22,10 +22,6 @@ export const PropertyPanel: React.FC = () => {
   const [newColumnName, setNewColumnName] = useState('');
   const [newColumnType, setNewColumnType] = useState(DEFAULT_FIELD_TYPE);
   const [activeTab, setActiveTab] = useState<'columns' | 'indexes' | 'primary-key'>('columns');
-  const [newIndexName, setNewIndexName] = useState('');
-  const [newIndexColumns, setNewIndexColumns] = useState<string[]>([]);
-  const [newIndexType, setNewIndexType] = useState<'btree' | 'hash' | 'gin' | 'gist'>('btree');
-  const [newIndexUnique, setNewIndexUnique] = useState(false);
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId);
 
@@ -37,7 +33,6 @@ export const PropertyPanel: React.FC = () => {
     );
   }
 
-  // Only show property panel for tables
   if (selectedNode.type !== 'table') {
     return (
       <div className="w-80 bg-white border-l border-gray-200 p-4">
@@ -89,10 +84,6 @@ export const PropertyPanel: React.FC = () => {
   };
 
   const handleColumnUpdate = (columnId: string, field: keyof Column, value: any) => {
-    // If setting primary key, clear composite primary key
-    if (field === 'isPrimaryKey' && value === true && tableData.compositePrimaryKey) {
-      setCompositePrimaryKey(selectedNodeId, []);
-    }
     updateColumn(selectedNodeId, columnId, { [field]: value });
   };
 
@@ -100,68 +91,8 @@ export const PropertyPanel: React.FC = () => {
     removeColumn(selectedNodeId, columnId);
   };
 
-  const handleAddIndex = () => {
-    if (!newIndexName.trim() || newIndexColumns.length === 0) return;
-
-    const newIndex: Index = {
-      id: `idx-${Date.now()}`,
-      name: newIndexName,
-      columns: newIndexColumns,
-      isUnique: newIndexUnique,
-      type: newIndexType,
-    };
-
-    addIndex(selectedNodeId, newIndex);
-    setNewIndexName('');
-    setNewIndexColumns([]);
-    setNewIndexUnique(false);
-    setNewIndexType('btree');
-  };
-
-  const handleIndexUpdate = (indexId: string, field: keyof Index, value: any) => {
-    updateIndex(selectedNodeId, indexId, { [field]: value });
-  };
-
-  const handleRemoveIndex = (indexId: string) => {
-    removeIndex(selectedNodeId, indexId);
-  };
-
-  const handleCompositePrimaryKeyChange = (columnIds: string[]) => {
-    // Clear individual primary key flags when setting composite
-    if (columnIds.length > 0) {
-      tableData.columns.forEach(col => {
-        if (col.isPrimaryKey) {
-          updateColumn(selectedNodeId, col.id, { isPrimaryKey: false });
-        }
-      });
-    }
-    setCompositePrimaryKey(selectedNodeId, columnIds);
-  };
-
-  const toggleColumnInIndex = (columnId: string) => {
-    setNewIndexColumns(prev => 
-      prev.includes(columnId) 
-        ? prev.filter(id => id !== columnId)
-        : [...prev, columnId]
-    );
-  };
-
-  const isColumnInCompositePK = (columnId: string) => {
-    return tableData.compositePrimaryKey?.includes(columnId) || false;
-  };
-
-  const toggleColumnInCompositePK = (columnId: string) => {
-    const currentKeys = tableData.compositePrimaryKey || [];
-    const newKeys = currentKeys.includes(columnId)
-      ? currentKeys.filter(id => id !== columnId)
-      : [...currentKeys, columnId];
-    
-    handleCompositePrimaryKeyChange(newKeys);
-  };
-
   return (
     <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full">
-      {/* Header */}
       <div className="p-4 border-b border-gray-200 flex items-center justify-between">
         <h3 className="font-semibold text-gray-800">Table Properties</h3>
         <button
@@ -172,7 +103,6 @@ export const PropertyPanel: React.FC = () => {
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex border-b border-gray-200">
         <button
           onClick={() => setActiveTab('columns')}
@@ -209,7 +139,6 @@ export const PropertyPanel: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Basic Info - Always visible */}
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -237,14 +166,12 @@ export const PropertyPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Columns Tab */}
         {activeTab === 'columns' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="font-medium text-gray-800">Columns</h4>
             </div>
 
-            {/* Column List */}
             <div className="space-y-2">
               {tableData.columns.map((column: Column) => (
                 <div key={column.id} className="border border-gray-200 rounded-md p-3 space-y-2">
@@ -283,7 +210,6 @@ export const PropertyPanel: React.FC = () => {
                     />
                   </div>
 
-                  {/* Check Constraint */}
                   <div>
                     <input
                       type="text"
@@ -301,7 +227,6 @@ export const PropertyPanel: React.FC = () => {
                         checked={column.isPrimaryKey}
                         onChange={(e) => handleColumnUpdate(column.id, 'isPrimaryKey', e.target.checked)}
                         className="rounded border-gray-300"
-                        disabled={!!tableData.compositePrimaryKey?.length}
                       />
                       <span>Primary Key</span>
                     </label>
@@ -340,7 +265,6 @@ export const PropertyPanel: React.FC = () => {
               ))}
             </div>
 
-            {/* Add Column */}
             <div className="border-2 border-dashed border-gray-300 rounded-md p-3 space-y-2">
               <input
                 type="text"
@@ -374,192 +298,17 @@ export const PropertyPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Indexes Tab */}
         {activeTab === 'indexes' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-gray-800">Indexes</h4>
-            </div>
-
-            {/* Index List */}
-            <div className="space-y-2">
-              {tableData.indexes && tableData.indexes.map((index: Index) => (
-                <div key={index.id} className="border border-gray-200 rounded-md p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <input
-                      type="text"
-                      value={index.name}
-                      onChange={(e) => handleIndexUpdate(index.id, 'name', e.target.value)}
-                      className="font-medium text-sm bg-transparent border-none focus:outline-none flex-1"
-                    />
-                    <button
-                      onClick={() => handleRemoveIndex(index.id)}
-                      className="p-1 text-red-500 hover:bg-red-50 rounded"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={index.type || 'btree'}
-                      onChange={(e) => handleIndexUpdate(index.id, 'type', e.target.value as any)}
-                      className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="btree">B-Tree</option>
-                      <option value="hash">Hash</option>
-                      <option value="gin">GIN</option>
-                      <option value="gist">GiST</option>
-                    </select>
-
-                    <label className="flex items-center space-x-1 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={index.isUnique || false}
-                        onChange={(e) => handleIndexUpdate(index.id, 'isUnique', e.target.checked)}
-                        className="rounded border-gray-300"
-                      />
-                      <span>Unique</span>
-                    </label>
-                  </div>
-
-                  <div className="text-xs text-gray-600">
-                    <strong>Columns:</strong> {index.columns.map(colId => {
-                      const col = tableData.columns.find(c => c.id === colId);
-                      return col?.name;
-                    }).filter(Boolean).join(', ')}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Add Index */}
-            <div className="border-2 border-dashed border-gray-300 rounded-md p-3 space-y-2">
-              <input
-                type="text"
-                value={newIndexName}
-                onChange={(e) => setNewIndexName(e.target.value)}
-                placeholder="Index name"
-                className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={newIndexType}
-                  onChange={(e) => setNewIndexType(e.target.value as any)}
-                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="btree">B-Tree</option>
-                  <option value="hash">Hash</option>
-                  <option value="gin">GIN</option>
-                  <option value="gist">GiST</option>
-                </select>
-
-                <label className="flex items-center space-x-1 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={newIndexUnique}
-                    onChange={(e) => setNewIndexUnique(e.target.checked)}
-                    className="rounded border-gray-300"
-                  />
-                  <span>Unique</span>
-                </label>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-700">Select Columns:</label>
-                <div className="space-y-1">
-                  {tableData.columns.map((column: Column) => (
-                    <label key={column.id} className="flex items-center space-x-1 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={newIndexColumns.includes(column.id)}
-                        onChange={() => toggleColumnInIndex(column.id)}
-                        className="rounded border-gray-300"
-                      />
-                      <span>{column.name} ({column.type})</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                onClick={handleAddIndex}
-                disabled={!newIndexName.trim() || newIndexColumns.length === 0}
-                className="w-full flex items-center justify-center space-x-1 px-2 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                <Plus size={12} />
-                <span>Add Index</span>
-              </button>
-            </div>
+            <h4 className="font-medium text-gray-800">Indexes</h4>
+            <p className="text-sm text-gray-600">Index management will be implemented here</p>
           </div>
         )}
 
-        {/* Primary Key Tab */}
         {activeTab === 'primary-key' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-gray-800">Primary Key Configuration</h4>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600">
-                Select columns to form a composite primary key, or use individual column primary keys.
-              </p>
-
-              <div className="space-y-2">
-                {tableData.columns.map((column: Column) => (
-                  <div key={column.id} className="flex items-center justify-between p-2 border border-gray-200 rounded">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm font-medium">{column.name}</span>
-                      <span className="text-xs text-gray-500">({column.type})</span>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <label className="flex items-center space-x-1 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={column.isPrimaryKey}
-                          onChange={(e) => handleColumnUpdate(column.id, 'isPrimaryKey', e.target.checked)}
-                          className="rounded border-gray-300"
-                          disabled={!!tableData.compositePrimaryKey?.length}
-                        />
-                        <span>Single PK</span>
-                      </label>
-                      <label className="flex items-center space-x-1 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={isColumnInCompositePK(column.id)}
-                          onChange={() => toggleColumnInCompositePK(column.id)}
-                          className="rounded border-gray-300"
-                        />
-                        <span>Composite PK</span>
-                      </label>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {tableData.compositePrimaryKey && tableData.compositePrimaryKey.length > 0 && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                  <p className="text-sm font-medium text-blue-800">Composite Primary Key:</p>
-                  <p className="text-sm text-blue-600">
-                    {tableData.compositePrimaryKey.map(colId => {
-                      const col = tableData.columns.find(c => c.id === colId);
-                      return col?.name;
-                    }).filter(Boolean).join(', ')}
-                  </p>
-                </div>
-              )}
-
-              {tableData.columns.some((col: Column) => col.isPrimaryKey) && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                  <p className="text-sm font-medium text-green-800">Individual Primary Keys:</p>
-                  <p className="text-sm text-green-600">
-                    {tableData.columns.filter((col: Column) => col.isPrimaryKey).map(col => col.name).join(', ')}
-                  </p>
-                </div>
-              )}
-            </div>
+            <h4 className="font-medium text-gray-800">Primary Key Configuration</h4>
+            <p className="text-sm text-gray-600">Composite primary key management will be implemented here</p>
           </div>
         )}
       </div>

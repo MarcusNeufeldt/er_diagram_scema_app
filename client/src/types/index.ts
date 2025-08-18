@@ -5,6 +5,9 @@ export interface Column {
   isPrimaryKey: boolean;
   isForeignKey?: boolean;
   isNullable: boolean;
+  isUnique?: boolean;
+  hasIndex?: boolean;
+  checkConstraint?: string;
   defaultValue?: string;
   references?: {
     table: string;
@@ -12,13 +15,22 @@ export interface Column {
   };
 }
 
+export interface Index {
+  id: string;
+  name: string;
+  columns: string[]; // column IDs
+  isUnique?: boolean;
+  type?: 'btree' | 'hash' | 'gin' | 'gist';
+}
+
 export interface TableData {
   id: string;
   name: string;
   schema?: string;
   columns: Column[];
-  indexes: string[];
+  indexes: Index[];
   foreignKeys: ForeignKey[];
+  compositePrimaryKey?: string[]; // column IDs that form composite primary key
   backgroundColor?: string;
   borderColor?: string;
 }
