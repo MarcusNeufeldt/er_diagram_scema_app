@@ -37,7 +37,7 @@ export const WelcomeModal: React.FC = () => {
 
           <div className="space-y-6">
             <p className="text-gray-600">
-              A real-time collaborative data modeling tool for DHL EAT Airline Leipzig's data team.
+              A real-time collaborative data modeling tool for designing and visualizing database schemas.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
