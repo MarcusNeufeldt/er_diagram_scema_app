@@ -50,7 +50,49 @@ export class SQLParser {
       });
     }
     
+    // Parse CREATE INDEX statements and associate them with tables
+    this.parseIndexes(sql, tables);
+    
     return tables;
+  }
+  
+  private static parseIndexes(sql: string, tables: ParsedTable[]): void {
+    // Parse CREATE INDEX statements
+    const indexRegex = /CREATE\s+(UNIQUE\s+)?INDEX\s+(\w+)\s+ON\s+(?:(\w+)\.)?(?:"([^"]+)"|(\w+))(?:\s+USING\s+(\w+))?\s*\(([^)]+)\)/gi;
+    
+    let match;
+    while ((match = indexRegex.exec(sql)) !== null) {
+      const isUnique = !!match[1];
+      const indexName = match[2];
+      const schema = match[3];
+      const tableName = match[4] || match[5];
+      const indexType = match[6]?.toLowerCase() as 'btree' | 'hash' | 'gin' | 'gist' | undefined;
+      const columnList = match[7];
+      
+      const columns = columnList
+        .split(',')
+        .map(col => col.trim().replace(/["`]/g, ''))
+        .filter(col => col.length > 0);
+      
+      // Find the corresponding table
+      const table = tables.find(t => 
+        t.name === tableName && 
+        ((!schema && !t.schema) || schema === t.schema)
+      );
+      
+      if (table) {
+        if (!table.indexes) {
+          table.indexes = [];
+        }
+        
+        table.indexes.push({
+          name: indexName,
+          columns,
+          isUnique,
+          type: indexType || 'btree'
+        });
+      }
+    }
   }
   
   private static parseColumns(columnDefinitions: string): { columns: ParsedColumn[], compositePrimaryKey?: string[] } {
@@ -149,22 +191,27 @@ export class SQLParser {
       }
       usedNames.add(uniqueName);
       
+      // First create the columns
+      const columns = table.columns.map((col, colIndex) => ({
+        id: `col-${Date.now()}-${index}-${colIndex}`,
+        name: col.name,
+        type: col.type,
+        isPrimaryKey: col.isPrimaryKey,
+        isNullable: col.isNullable,
+        isUnique: col.isUnique,
+        checkConstraint: col.checkConstraint,
+        defaultValue: col.defaultValue,
+      }));
+
       const tableData: TableData = {
         id: `table-${Date.now()}-${index}`,
         name: uniqueName,
         schema: table.schema,
-        columns: table.columns.map((col, colIndex) => ({
-          id: `col-${Date.now()}-${index}-${colIndex}`,
-          name: col.name,
-          type: col.type,
-          isPrimaryKey: col.isPrimaryKey,
-          isNullable: col.isNullable,
-          isUnique: col.isUnique,
-          checkConstraint: col.checkConstraint,
-          defaultValue: col.defaultValue,
-        })),
-        indexes: [],
+        columns,
+        indexes: this.convertParsedIndexesToTableIndexes(table.indexes || [], columns),
         foreignKeys: [],
+        compositePrimaryKey: table.compositePrimaryKey ? 
+          this.mapColumnNamesToIds(table.compositePrimaryKey, columns) : undefined,
       };
       
       return {
@@ -174,6 +221,26 @@ export class SQLParser {
         data: tableData,
       };
     });
+  }
+  
+  private static convertParsedIndexesToTableIndexes(parsedIndexes: ParsedIndex[], columns: any[]): any[] {
+    return parsedIndexes.map((parsedIndex, idx) => ({
+      id: `idx-${Date.now()}-${idx}`,
+      name: parsedIndex.name,
+      columns: parsedIndex.columns.map(colName => {
+        const col = columns.find(c => c.name === colName);
+        return col?.id || `col-unknown-${colName}`;
+      }).filter(id => !id.startsWith('col-unknown')),
+      isUnique: parsedIndex.isUnique,
+      type: parsedIndex.type || 'btree'
+    }));
+  }
+  
+  private static mapColumnNamesToIds(columnNames: string[], columns: any[]): string[] {
+    return columnNames.map(colName => {
+      const col = columns.find(c => c.name === colName);
+      return col?.id || `col-unknown-${colName}`;
+    }).filter(id => !id.startsWith('col-unknown'));
   }
 }
 
