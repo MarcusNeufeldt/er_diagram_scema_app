@@ -2,13 +2,13 @@ import React, { useRef, useEffect } from 'react';
 import { 
   Plus, Download, Upload, Save, Undo, Redo, Bot, Layout, 
   Grid3x3, StickyNote, Square, Circle, Diamond, ChevronDown,
-  FileText, Shapes, Settings, Image
+  FileText, Shapes, Settings, Eye, Maximize2
 } from 'lucide-react';
 import { useDiagramStore } from '../stores/diagramStore';
 import { SQLParser, SQLGenerator } from '../lib/sqlParser';
 import { userService } from '../services/userService';
 import { LockStatusIndicator } from './LockStatusIndicator';
-import { exportCanvasAsPNG } from '../lib/exportUtils';
+import { exportCurrentViewportAsPNG, exportFullDiagramAsPNG } from '../lib/exportUtils';
 
 interface ToolbarProps {
   onOpenAIChat: () => void;
@@ -187,7 +187,7 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
     setShowFileMenu(false);
   };
 
-  const handleExportPNG = async () => {
+  const handleExportCurrentView = async () => {
     try {
       if (nodes.length === 0) {
         addNotification('warning', 'No tables to export');
@@ -195,14 +195,35 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
         return;
       }
 
-      addNotification('info', 'Generating PNG export...');
+      addNotification('info', 'Exporting current view...');
       
-      await exportCanvasAsPNG(nodes, 'database-diagram.png');
+      await exportCurrentViewportAsPNG(nodes, 'current-view.png');
       
-      addNotification('success', 'Diagram exported as PNG successfully');
+      addNotification('success', 'Current view exported successfully');
     } catch (error) {
-      console.error('PNG export error:', error);
-      addNotification('error', 'Failed to export diagram as PNG');
+      console.error('Current view export error:', error);
+      addNotification('error', 'Failed to export current view');
+    } finally {
+      setShowFileMenu(false);
+    }
+  };
+
+  const handleExportFullDiagram = async () => {
+    try {
+      if (nodes.length === 0) {
+        addNotification('warning', 'No tables to export');
+        setShowFileMenu(false);
+        return;
+      }
+
+      addNotification('info', 'Exporting full diagram...');
+      
+      await exportFullDiagramAsPNG(nodes, 'full-diagram.png');
+      
+      addNotification('success', 'Full diagram exported successfully');
+    } catch (error) {
+      console.error('Full diagram export error:', error);
+      addNotification('error', 'Failed to export full diagram');
     } finally {
       setShowFileMenu(false);
     }
@@ -319,11 +340,18 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
                 <span>Export JSON</span>
               </button>
               <button
-                onClick={handleExportPNG}
+                onClick={handleExportCurrentView}
                 className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center space-x-2"
               >
-                <Image size={14} />
-                <span>Export PNG</span>
+                <Eye size={14} />
+                <span>Export Current View</span>
+              </button>
+              <button
+                onClick={handleExportFullDiagram}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center space-x-2"
+              >
+                <Maximize2 size={14} />
+                <span>Export Full Diagram</span>
               </button>
             </div>
           )}
