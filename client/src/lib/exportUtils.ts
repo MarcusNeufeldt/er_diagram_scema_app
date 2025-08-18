@@ -46,6 +46,7 @@ export function calculateNodesBoundingBox(nodes: Node[], padding = 50): Bounding
 /**
  * Exports the current viewport (what user currently sees) as PNG
  * This captures exactly what's visible on screen at the current zoom/pan level
+ * Includes special handling for ReactFlow edges/connections
  */
 export async function exportCurrentViewportAsPNG(nodes: Node[], filename = "current-view.png"): Promise<void> {
   if (nodes.length === 0) {
@@ -59,6 +60,12 @@ export async function exportCurrentViewportAsPNG(nodes: Node[], filename = "curr
   }
   
   try {
+    // Fix for ReactFlow edges: Ensure SVG elements are properly captured
+    await ensureEdgesVisible();
+    
+    // Wait a moment for any dynamic content to settle
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     const canvas = await html2canvas(reactFlowContainer, { 
       useCORS: true,
       allowTaint: true,
@@ -72,6 +79,64 @@ export async function exportCurrentViewportAsPNG(nodes: Node[], filename = "curr
     console.error('Error capturing current viewport:', error);
     throw new Error('Failed to export current view as PNG');
   }
+}
+
+/**
+ * Helper function to ensure ReactFlow edges are visible for capture
+ * This addresses the common issue where SVG edges disappear in html2canvas
+ */
+async function ensureEdgesVisible(): Promise<void> {
+  // Method 1: Force repaint of SVG elements
+  const svgElements = document.querySelectorAll('.react-flow__edges svg');
+  svgElements.forEach(svg => {
+    const svgElement = svg as SVGElement;
+    // Force a style recalculation
+    svgElement.style.display = 'none';
+    void (svgElement as any).offsetHeight; // Trigger reflow
+    svgElement.style.display = '';
+    
+    // Ensure SVG has proper attributes for html2canvas
+    if (!svgElement.getAttribute('xmlns')) {
+      svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    }
+  });
+  
+  // Method 2: Fix edge paths styling
+  const edgePaths = document.querySelectorAll('.react-flow__edge path');
+  edgePaths.forEach(path => {
+    const pathElement = path as SVGPathElement;
+    // Ensure paths have proper styling
+    if (!pathElement.getAttribute('stroke')) {
+      pathElement.setAttribute('stroke', '#b1b1b7');
+    }
+    if (!pathElement.getAttribute('stroke-width')) {
+      pathElement.setAttribute('stroke-width', '2');
+    }
+    if (!pathElement.getAttribute('fill')) {
+      pathElement.setAttribute('fill', 'none');
+    }
+  });
+  
+  // Method 3: Fix edge markers (arrowheads)
+  const markers = document.querySelectorAll('.react-flow__edges defs marker');
+  markers.forEach(marker => {
+    const markerElement = marker as SVGMarkerElement;
+    // Ensure markers are visible
+    markerElement.style.display = 'block';
+    markerElement.style.overflow = 'visible';
+  });
+  
+  // Method 4: Ensure the edges container is visible
+  const edgesContainer = document.querySelector('.react-flow__edges');
+  if (edgesContainer) {
+    const container = edgesContainer as HTMLElement;
+    container.style.pointerEvents = 'auto';
+    container.style.position = 'absolute';
+    container.style.zIndex = '1';
+  }
+  
+  // Wait for any style changes to take effect
+  await new Promise(resolve => setTimeout(resolve, 100));
 }
 
 /**
@@ -108,6 +173,9 @@ export async function exportFullDiagramAsPNG(nodes: Node[], filename = "full-dia
 
     // Wait a brief moment for the DOM to update
     await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Ensure edges are visible before capture
+    await ensureEdgesVisible();
 
     // Capture with specific dimensions
     const canvas = await html2canvas(viewport, {
@@ -129,6 +197,44 @@ export async function exportFullDiagramAsPNG(nodes: Node[], filename = "full-dia
     viewport.style.transform = originalTransform;
     viewport.style.width = originalWidth;
     viewport.style.height = originalHeight;
+  }
+}
+
+/**
+ * Alternative current viewport export that captures the entire ReactFlow wrapper
+ * This method might work better for edge visibility in some cases
+ */
+export async function exportCurrentViewportAlternative(nodes: Node[], filename = "current-view-alt.png"): Promise<void> {
+  if (nodes.length === 0) {
+    throw new Error("No nodes found to export");
+  }
+  
+  // Try capturing the entire ReactFlow wrapper instead of just the container
+  const reactFlowWrapper = document.querySelector(".react-flow") as HTMLElement;
+  if (!reactFlowWrapper) {
+    throw new Error("ReactFlow wrapper not found");
+  }
+  
+  try {
+    // Ensure edges are visible
+    await ensureEdgesVisible();
+    
+    // Additional wait for edge rendering
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Capture the wrapper which includes controls, minimap, etc.
+    const canvas = await html2canvas(reactFlowWrapper, { 
+      useCORS: true,
+      allowTaint: true,
+      background: '#ffffff'
+    });
+    
+    const dataURL = canvas.toDataURL("image/png");
+    downloadImage(dataURL, filename);
+    
+  } catch (error) {
+    console.error('Error capturing alternative viewport:', error);
+    throw new Error('Failed to export alternative current view as PNG');
   }
 }
 
