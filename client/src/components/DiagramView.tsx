@@ -28,16 +28,20 @@ export const DiagramView: React.FC = () => {
 
   // Initialize user if not logged in
   useEffect(() => {
-    if (!currentUser) {
-      const user = userService.promptForUser();
-      if (user) {
-        setCurrentUser(user);
-      } else {
-        // If user cancels login, redirect to dashboard
-        navigate('/');
-        return;
+    const checkUser = async () => {
+      if (!currentUser) {
+        const user = await userService.promptForUser();
+        if (user) {
+          setCurrentUser(user);
+        } else {
+          // If user cancels login, redirect to dashboard
+          alert('You must be logged in to view a diagram.');
+          navigate('/');
+        }
       }
-    }
+    };
+
+    checkUser();
   }, [currentUser, navigate]);
 
   // Set current diagram ID for the store

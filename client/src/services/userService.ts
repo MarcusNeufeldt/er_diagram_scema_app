@@ -1,10 +1,11 @@
 interface User {
   id: string;
   name: string;
-  email?: string;
+  email: string; // Email is now mandatory
 }
 
 const USER_STORAGE_KEY = 'diagram_app_user';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 export class UserService {
   private static instance: UserService;
@@ -25,7 +26,13 @@ export class UserService {
     try {
       const stored = localStorage.getItem(USER_STORAGE_KEY);
       if (stored) {
-        this.currentUser = JSON.parse(stored);
+        const user = JSON.parse(stored);
+        // Basic validation to ensure the stored user has an email
+        if (user && user.email) {
+          this.currentUser = user;
+        } else {
+          this.clearUser(); // Clear invalid user data
+        }
       }
     } catch (error) {
       console.error('Failed to load user from storage:', error);
@@ -45,16 +52,35 @@ export class UserService {
     return this.currentUser;
   }
 
-  public setUser(name: string, email?: string): User {
-    const user: User = {
-      id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: name.trim(),
-      email: email?.trim(),
-    };
+  public async loginOrRegister(email: string, name?: string): Promise<User | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          name: name?.trim(),
+        }),
+      });
 
-    this.currentUser = user;
-    this.saveUserToStorage(user);
-    return user;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to login or register');
+      }
+
+      const user: User = await response.json();
+
+      this.currentUser = user;
+      this.saveUserToStorage(user);
+
+      return user;
+    } catch (error) {
+      console.error('Login or register error:', error);
+      this.clearUser();
+      return null;
+    }
   }
 
   public updateUser(updates: Partial<Omit<User, 'id'>>): User | null {
@@ -79,14 +105,16 @@ export class UserService {
     return this.currentUser !== null;
   }
 
-  public promptForUser(): User | null {
-    const name = prompt('Please enter your name to continue:');
-    if (!name || name.trim() === '') {
+  public async promptForUser(): Promise<User | null> {
+    const email = prompt('Please enter your email to continue:');
+    if (!email || email.trim() === '') {
       return null;
     }
 
-    const email = prompt('Email (optional):');
-    return this.setUser(name, email || undefined);
+    // Optional: ask for name only if user is new, but for simplicity, we can always ask
+    const name = prompt('Enter your name (optional):');
+
+    return await this.loginOrRegister(email, name || undefined);
   }
 }
 
