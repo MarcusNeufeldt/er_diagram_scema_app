@@ -197,10 +197,7 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
 
       addNotification('info', 'Generating PNG export...');
       
-      await exportCanvasAsPNG(nodes, 'database-diagram.png', {
-        backgroundColor: '#ffffff',
-        scale: 2
-      });
+      await exportCanvasAsPNG(nodes, 'database-diagram.png');
       
       addNotification('success', 'Diagram exported as PNG successfully');
     } catch (error) {
