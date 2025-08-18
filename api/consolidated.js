@@ -307,6 +307,57 @@ module.exports = async (req, res) => {
         });
       }
     }
+
+    // Route: POST /api/users - Get or create a user
+    if (method === 'POST' && url.includes('/api/users')) {
+      const { email, name } = body;
+
+      if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+      }
+
+      const client = createDbClient();
+      try {
+        // Check if user exists
+        let userResult = await client.execute({
+          sql: 'SELECT id, email, name, createdAt FROM User WHERE email = ?',
+          args: [email]
+        });
+
+        if (userResult.rows.length > 0) {
+          // User exists, return user data
+          const user = userResult.rows[0];
+          console.log(`✅ User found: ${user.email}`);
+          return res.status(200).json(user);
+        } else {
+          // User does not exist, create a new one
+          const userId = 'user-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+          const now = new Date().toISOString();
+          const userName = name || email.split('@')[0]; // Default name from email
+
+          await client.execute({
+            sql: 'INSERT INTO User (id, email, name, createdAt) VALUES (?, ?, ?, ?)',
+            args: [userId, email, userName, now]
+          });
+
+          // Return the newly created user
+          const newUserResult = await client.execute({
+            sql: 'SELECT id, email, name, createdAt FROM User WHERE id = ?',
+            args: [userId]
+          });
+
+          const newUser = newUserResult.rows[0];
+
+          console.log(`✅ User created: ${newUser.email}`);
+          return res.status(201).json(newUser);
+        }
+      } catch (error) {
+        console.error('User lookup/creation error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+      } finally {
+        client.close();
+      }
+    }
     
     // Route: GET /diagrams - List all diagrams
     if (method === 'GET' && url.includes('/diagrams')) {

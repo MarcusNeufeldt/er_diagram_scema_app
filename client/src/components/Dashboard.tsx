@@ -26,10 +26,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const currentUser = userService.getCurrentUser();
+  const [user, setUser] = useState(userService.getCurrentUser());
 
   useEffect(() => {
-    loadDiagrams();
+    const initialize = async () => {
+      let currentUser = userService.getCurrentUser();
+      if (!currentUser) {
+        currentUser = await userService.promptForUser();
+        setUser(currentUser);
+      }
+      // If user is still not available (e.g., cancelled prompt), we can decide what to do.
+      // For now, we'll allow the dashboard to load, but creation will be blocked.
+      loadDiagrams();
+    };
+
+    initialize();
   }, []);
 
   const loadDiagrams = async () => {
@@ -74,8 +85,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
   };
 
   const createNewDiagram = async () => {
+    let currentUser = user;
     if (!currentUser) {
-      alert('Please log in to create a diagram');
+      currentUser = await userService.promptForUser();
+      setUser(currentUser);
+    }
+
+    if (!currentUser) {
+      // User cancelled the prompt or login failed
       return;
     }
 
@@ -130,7 +147,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
   const getCollaborationStatus = (diagram: Diagram) => {
     if (!isLocked(diagram)) return null;
     
-    const isCurrentUser = diagram.lockedByUserId === currentUser?.id;
+    const isCurrentUser = diagram.lockedByUserId === user?.id;
     if (isCurrentUser) {
       return {
         text: 'You are editing',
@@ -186,9 +203,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
               </p>
             </div>
             <div className="flex items-center space-x-4">
-              {currentUser && (
+              {user && (
                 <div className="text-sm text-gray-600">
-                  Welcome, <span className="font-medium">{currentUser.name}</span>
+                  Welcome, <span className="font-medium">{user.name}</span>
                 </div>
               )}
               <button
@@ -268,9 +285,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-500">
-                        Click to {isLocked(diagram) && diagram.lockedByUserId !== currentUser?.id ? 'view' : 'edit'}
+                        Click to {isLocked(diagram) && diagram.lockedByUserId !== user?.id ? 'view' : 'edit'}
                       </span>
-                      {isLocked(diagram) && diagram.lockedByUserId !== currentUser?.id && (
+                      {isLocked(diagram) && diagram.lockedByUserId !== user?.id && (
                         <Lock className="w-4 h-4 text-orange-500" />
                       )}
                     </div>
@@ -278,7 +295,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateDiagram }) => {
                   </Link>
                   
                   {/* Action Menu - Only show for diagram owner */}
-                  {diagram.owner.id === currentUser?.id && (
+                  {diagram.owner.id === user?.id && (
                     <div className="absolute top-4 right-4">
                       <button
                         onClick={(e) => {
