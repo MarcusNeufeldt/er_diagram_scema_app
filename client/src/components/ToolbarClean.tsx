@@ -2,12 +2,14 @@ import React, { useRef, useEffect } from 'react';
 import { 
   Plus, Download, Upload, Save, Undo, Redo, Bot, Layout, 
   Grid3x3, StickyNote, Square, Circle, Diamond, ChevronDown,
-  FileText, Shapes, Settings
+  FileText, Shapes, Settings, Eye, Maximize2, Focus
 } from 'lucide-react';
+// Removed useReactFlow import to avoid context issues
 import { useDiagramStore } from '../stores/diagramStore';
 import { SQLParser, SQLGenerator } from '../lib/sqlParser';
 import { userService } from '../services/userService';
 import { LockStatusIndicator } from './LockStatusIndicator';
+import { exportCurrentViewportAsPNG, exportFullDiagramAsPNG } from '../lib/exportUtils';
 
 interface ToolbarProps {
   onOpenAIChat: () => void;
@@ -81,6 +83,26 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
   const handleAutoLayout = () => {
     autoLayout();
     setShowViewMenu(false);
+  };
+
+  const handleFitView = () => {
+    // Trigger the native ReactFlow fit view button
+    const fitViewButton = document.querySelector('.react-flow__controls-fitview') as HTMLButtonElement;
+    if (fitViewButton) {
+      fitViewButton.click();
+      addNotification('success', 'Fitted all tables in view');
+    } else {
+      // Fallback: try to find any fit view control
+      const controls = document.querySelector('.react-flow__controls');
+      const buttons = controls?.querySelectorAll('button');
+      if (buttons && buttons.length >= 3) {
+        // Usually the fit view button is the 3rd button (after zoom in/out)
+        (buttons[2] as HTMLButtonElement).click();
+        addNotification('success', 'Fitted all tables in view');
+      } else {
+        addNotification('warning', 'Could not find fit view control. Use the controls panel on the bottom-right.');
+      }
+    }
   };
 
   const handleAddStickyNote = () => {
@@ -186,6 +208,48 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
     setShowFileMenu(false);
   };
 
+  const handleExportCurrentView = async () => {
+    try {
+      if (nodes.length === 0) {
+        addNotification('warning', 'No tables to export');
+        setShowFileMenu(false);
+        return;
+      }
+
+      addNotification('info', 'Exporting current view...');
+      
+      await exportCurrentViewportAsPNG(nodes, 'current-view.png');
+      
+      addNotification('success', 'Current view exported successfully');
+    } catch (error) {
+      console.error('Current view export error:', error);
+      addNotification('error', 'Failed to export current view');
+    } finally {
+      setShowFileMenu(false);
+    }
+  };
+
+  const handleExportFullDiagram = async () => {
+    try {
+      if (nodes.length === 0) {
+        addNotification('warning', 'No tables to export');
+        setShowFileMenu(false);
+        return;
+      }
+
+      addNotification('info', 'Exporting current view as full diagram. Tip: Use the green "Fit View" button to show all tables first!');
+      
+      await exportFullDiagramAsPNG(nodes, 'full-diagram.png');
+      
+      addNotification('success', 'Diagram exported successfully');
+    } catch (error) {
+      console.error('Full diagram export error:', error);
+      addNotification('error', 'Failed to export diagram');
+    } finally {
+      setShowFileMenu(false);
+    }
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -252,6 +316,16 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
           <span className="text-sm">Add Table</span>
         </button>
 
+        {/* Fit View Button */}
+        <button
+          onClick={handleFitView}
+          className="flex items-center space-x-1 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+          title="Fit all tables in view (⌘+Shift+F)"
+        >
+          <Focus size={16} />
+          <span className="text-sm">Fit View</span>
+        </button>
+
         {/* File Menu */}
         <div className="relative" ref={fileMenuRef}>
           <button
@@ -295,6 +369,20 @@ export const ToolbarClean: React.FC<ToolbarProps> = ({ onOpenAIChat }) => {
               >
                 <Download size={14} />
                 <span>Export JSON</span>
+              </button>
+              <button
+                onClick={handleExportCurrentView}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center space-x-2"
+              >
+                <Eye size={14} />
+                <span>Export PNG (Current View)</span>
+              </button>
+              <button
+                onClick={handleExportFullDiagram}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center space-x-2"
+              >
+                <Maximize2 size={14} />
+                <span>Export PNG (Fit All Tables)</span>
               </button>
             </div>
           )}
