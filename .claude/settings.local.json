@@ -46,7 +46,9 @@
       "Bash(set PORT=3007)",
       "WebSearch",
       "Bash(cmd /c:*)",
-      "Bash(npx kill-port:*)"
+      "Bash(npx kill-port:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": [],
